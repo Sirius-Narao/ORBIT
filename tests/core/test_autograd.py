@@ -472,4 +472,4 @@ def test_negation_backward():
 
     z.backward()
 
-    assert np.allclose(x.grad, -1.0)
+    assert np.allclose(x.grad, -1.0)

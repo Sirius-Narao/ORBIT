@@ -27,6 +27,17 @@ except ImportError:
     )
 
 class Tensor:
+    """
+    The "Atom" or "Cell" of ORBIT.
+    A multi-dimensional container for data, capable of performing operations and
+    tracking its lineage for automatic differentiation.
+
+    Supports:
+        - Basic arithmetic operations (+, -, *, /, **)
+        - Matrix multiplication (@)
+        - Reduction operations (sum, mean)
+        - Chain rule differentiation
+    """
     
     def __init__(
             self, 
