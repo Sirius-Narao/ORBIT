@@ -12,6 +12,10 @@ try:
         backward_sum,
         backward_mean,
         backward_neg,
+        backward_relu,
+        backward_sigmoid,
+        backward_tanh,
+        backward_softmax,
     )
 except ImportError:
     from orbit.core.autograd import (
@@ -24,6 +28,10 @@ except ImportError:
         backward_sum,
         backward_mean,
         backward_neg,
+        backward_relu,
+        backward_sigmoid,
+        backward_tanh,
+        backward_softmax,
     )
 
 class Tensor:
@@ -238,6 +246,48 @@ class Tensor:
             operation="reshape",
             parents=[self]
         )
+
+    def relu(self):
+        out = Tensor(
+            np.maximum(0, self.data),
+            requires_grad=self.requires_grad,
+            operation="relu",
+            parents=[self]
+        )
+        out._backward = lambda res=out, parent=self: backward_relu(res, parent)
+        return out
+    
+    def sigmoid(self):
+        out = Tensor(
+            1 / (1 + np.exp(-self.data)),
+            requires_grad=self.requires_grad,
+            operation="sigmoid",
+            parents=[self]
+        )
+        out._backward = lambda res=out, parent=self: backward_sigmoid(res, parent)
+        return out
+
+    def tanh(self):
+        out = Tensor(
+            np.tanh(self.data),
+            requires_grad=self.requires_grad,
+            operation="tanh",
+            parents=[self]
+        )
+        out._backward = lambda res=out, parent=self: backward_tanh(res, parent)
+        return out
+
+    def softmax(self, axis: int = -1):
+        exp_data = np.exp(self.data - np.max(self.data, axis=axis, keepdims=True))
+        softmax_data = exp_data / np.sum(exp_data, axis=axis, keepdims=True)
+        out = Tensor(
+            softmax_data,
+            requires_grad=self.requires_grad,
+            operation="softmax",
+            parents=[self]
+        )
+        out._backward = lambda res=out, parent=self, a=axis: backward_softmax(res, parent, axis=a)
+        return out
 
     # Slicing
     def __getitem__(self, index):

@@ -581,4 +581,108 @@ def backward_neg(
     if result.grad is None:
         return
 
-    accumulate_gradient(parent, -result.grad)
+    accumulate_gradient(parent, -result.grad)
+
+
+def backward_relu(
+    result: "Tensor",
+    parent: "Tensor",
+) -> None:
+    """
+    Backward rule for:
+
+        result = max(0, parent)
+
+    Mathematics:
+
+        d(result)/d(parent) = 1 if parent > 0 else 0
+
+    Therefore:
+
+        dL/dparent = dL/dresult * (parent.data > 0)
+    """
+
+    if result.grad is None:
+        return
+
+    gradient = result.grad * (parent.data > 0).astype(float)
+
+    accumulate_gradient(parent, gradient)
+
+
+def backward_sigmoid(
+    result: "Tensor",
+    parent: "Tensor",
+) -> None:
+    """
+    Backward rule for:
+
+        result = sigmoid(parent)
+
+    Mathematics:
+
+        d(result)/d(parent) = sigmoid(parent) * (1 - sigmoid(parent))
+
+    Therefore:
+
+        dL/dparent = dL/dresult * (sigmoid(parent) * (1 - sigmoid(parent)))
+    """
+
+    if result.grad is None:
+        return
+
+    gradient = result.grad * (result.data * (1.0 - result.data))
+
+    accumulate_gradient(parent, gradient)
+
+
+def backward_tanh(
+    result: "Tensor",
+    parent: "Tensor",
+) -> None:
+    """
+    Backward rule for:
+
+        result = tanh(parent)
+
+    Mathematics:
+
+        d(result)/d(parent) = 1 - tanh²(parent) = 1 - result.data²
+
+    Therefore:
+
+        dL/dparent = dL/dresult * (1 - result.data²)
+    """
+
+    if result.grad is None:
+        return
+
+    gradient = result.grad * (1.0 - result.data ** 2)
+
+    accumulate_gradient(parent, gradient)
+
+
+def backward_softmax(
+    result: "Tensor",
+    parent: "Tensor",
+    axis: int = -1,
+) -> None:
+    """
+    Backward rule for:
+
+        result = softmax(parent, axis=axis)
+
+    Mathematics:
+
+        dL/dparent_i = result_i * (dL/dresult_i - sum_k(dL/dresult_k * result_k))
+    """
+
+    if result.grad is None:
+        return
+
+    sum_g_s = np.sum(result.grad * result.data, axis=axis, keepdims=True)
+    gradient = result.data * (result.grad - sum_g_s)
+
+    accumulate_gradient(parent, gradient)
+
+
