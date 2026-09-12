@@ -12,10 +12,12 @@ try:
         backward_sum,
         backward_mean,
         backward_neg,
+        backward_pow,
         backward_relu,
         backward_sigmoid,
         backward_tanh,
         backward_softmax,
+        backward_cross_entropy,
     )
 except ImportError:
     from orbit.core.autograd import (
@@ -28,10 +30,12 @@ except ImportError:
         backward_sum,
         backward_mean,
         backward_neg,
+        backward_pow,
         backward_relu,
         backward_sigmoid,
         backward_tanh,
         backward_softmax,
+        backward_cross_entropy,
     )
 
 class Tensor:
@@ -112,12 +116,14 @@ class Tensor:
 
     def __rpow__(self, x):
         x = x if isinstance(x, Tensor) else Tensor(x)
-        return Tensor(
+        out = Tensor(
             x.data ** self.data,
             requires_grad = self.requires_grad or x.requires_grad,
             operation = "**",
             parents = [x, self]
         )
+        out._backward = lambda res=out, left=x, right=self: backward_pow(res, left, right)
+        return out
 
     def __rtruediv__(self, x):
         x = x if isinstance(x, Tensor) else Tensor(x)
@@ -176,12 +182,14 @@ class Tensor:
 
     def __pow__(self, x):
         x = x if isinstance(x, Tensor) else Tensor(x)
-        return Tensor(
+        out = Tensor(
             self.data ** x.data,
             requires_grad = self.requires_grad or x.requires_grad,
             operation = "**",
             parents = [self, x]
         )
+        out._backward = lambda res=out, left=self, right=x: backward_pow(res, left, right)
+        return out
     
     def __sub__(self, x):
         x = x if isinstance(x, Tensor) else Tensor(x)

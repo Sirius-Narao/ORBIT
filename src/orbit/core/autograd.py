@@ -584,6 +584,47 @@ def backward_neg(
     accumulate_gradient(parent, -result.grad)
 
 
+def backward_pow(
+    result: "Tensor",
+    left: "Tensor",
+    right: "Tensor",
+) -> None:
+    """
+    Backward rule for:
+
+        result = left ** right
+
+    Mathematics:
+
+        d(result)/d(left)  = right * left^(right - 1)
+        d(result)/d(right) = left^right * ln(left)
+
+    Therefore, applying the chain rule:
+
+        dL/dleft  = dL/dresult * right * left^(right - 1)
+        dL/dright = dL/dresult * left^right * ln(left)
+
+    Note:
+    -----
+    The exponent gradient path uses ln(left), which is undefined for
+    left <= 0. A small epsilon guards against this edge case.
+    """
+
+    if result.grad is None:
+        return
+
+    accumulate_gradient(
+        left,
+        result.grad * right.data * (left.data ** (right.data - 1)),
+    )
+
+    eps = 1e-12
+    accumulate_gradient(
+        right,
+        result.grad * (left.data ** right.data) * np.log(np.abs(left.data) + eps),
+    )
+
+
 def backward_relu(
     result: "Tensor",
     parent: "Tensor",
@@ -686,3 +727,50 @@ def backward_softmax(
     accumulate_gradient(parent, gradient)
 
 
+def backward_cross_entropy(
+    result: "Tensor",
+    parent: "Tensor",
+    indices: "np.ndarray",
+) -> None:
+    """
+    Fused backward rule for Softmax + Categorical Cross-Entropy loss.
+
+    Forward recap:
+        probs  = softmax(parent)          # (N, C) or (C,)
+        loss   = mean(-log(probs[y]))     # scalar
+
+    Combined gradient (analytic simplification of chain rule through
+    softmax and NLL):
+
+        dL/dlogits_i = (probs_i - one_hot_i) / N
+
+    This collapses the Jacobian of softmax and the gradient of -log into
+    a single, numerically stable expression.
+
+    Parameters
+    ----------
+    result  : the scalar loss Tensor.
+    parent  : the logits Tensor (y_pred).
+    indices : integer array of true class indices, shape (N,) or scalar.
+    """
+
+    if result.grad is None:
+        return
+
+    logits  = parent.data                                                 # (N, C) or (C,)
+    shifted = logits - np.max(logits, axis=-1, keepdims=True)
+    exp     = np.exp(shifted)
+    probs   = exp / np.sum(exp, axis=-1, keepdims=True)                  # (N, C) or (C,)
+
+    if probs.ndim == 1:
+        # single sample — grad shape (C,)
+        grad           = probs.copy()
+        grad[indices] -= 1.0                                              # subtract 1 at true class
+    else:
+        N    = probs.shape[0]
+        grad = probs.copy()                                               # (N, C)
+        grad[np.arange(N), indices] -= 1.0                               # subtract one-hot
+        grad /= N                                                         # scale by 1/N (from mean)
+
+    # chain rule: multiply by upstream gradient (1.0 for a scalar loss)
+    accumulate_gradient(parent, result.grad * grad)
