@@ -4,6 +4,8 @@ from orbit.nn.activations import Tanh, Sigmoid
 from orbit.nn.losses.mse import MSE
 from orbit.nn.optimizers import SGD
 from orbit.core import Tensor
+from orbit.core.dataset import TensorDataset
+from orbit.core.dataloader import DataLoader
 from orbit.nn.training.trainer import Trainer
 
 class XORModel(Module):
@@ -44,15 +46,16 @@ def test_xor_converges():
     X = Tensor([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]])
     Y = Tensor([[0.0], [1.0], [1.0], [0.0]])
 
+    dataset = TensorDataset(X.data, Y.data)
+    dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
+
     model = XORModel()
     loss_fn = MSE()
     optimizer = SGD(model.parameters(), lr=2)
 
-    loss = Trainer().fit(model, loss_fn, optimizer, X, Y, epochs=3000, verbose=True, log_every=10)
+    loss = Trainer().fit(model, loss_fn, optimizer, dataloader, epochs=3000, verbose=True, log_every=10)
 
-    assert loss.data < 0.05
+    assert loss < 0.05
 
     predictions = (model(X).data > 0.5).astype(float)
     assert (predictions == Y.data).all()
-
-test_xor_converges()
