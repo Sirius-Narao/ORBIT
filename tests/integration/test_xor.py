@@ -53,9 +53,11 @@ def test_xor_converges():
     loss_fn = MSE()
     optimizer = SGD(model.parameters(), lr=2)
 
-    loss = Trainer().fit(model, loss_fn, optimizer, dataloader, epochs=3000, verbose=True, log_every=10)
+    loss = Trainer().fit(model, loss_fn, optimizer, dataloader, epochs=3000, verbose=True, log_every=100)
 
     assert loss < 0.05
 
     predictions = (model(X).data > 0.5).astype(float)
     assert (predictions == Y.data).all()
+
+test_xor_converges()
