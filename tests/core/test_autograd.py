@@ -473,3 +473,51 @@ def test_negation_backward():
     z.backward()
 
     assert np.allclose(x.grad, -1.0)
+
+
+# ===========================================================================
+# 13. Broadcasting: bias vector added to a batch
+# ===========================================================================
+
+def test_add_broadcast_bias_backward():
+    """
+    Test:
+
+        result = batch + bias
+
+    where:
+
+        batch = [[1, 2],
+                 [3, 4],
+                 [5, 6]]     shape (3, 2)
+
+        bias  = [10, 20]     shape (2,)
+
+    NumPy broadcasts `bias` across the 3 rows of `batch` during the
+    forward pass. Every one of those 3 broadcasted copies of `bias`
+    contributes to the result, so during backward() their gradients must
+    be SUMMED to produce a single gradient with bias's own shape (2,).
+
+    With an upstream gradient of all-ones (from `.sum()`):
+
+        dbatch = [[1, 1],
+                  [1, 1],
+                  [1, 1]]     shape (3, 2) -- same shape as batch
+
+        dbias  = [3, 3]       shape (2,)  -- summed over the 3 rows
+    """
+
+    batch = Tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], requires_grad=True)
+    bias = Tensor([10.0, 20.0], requires_grad=True)
+
+    result = batch + bias
+
+    assert np.allclose(result.data, [[11.0, 22.0], [13.0, 24.0], [15.0, 26.0]])
+
+    result.sum().backward()
+
+    assert batch.grad.shape == (3, 2)
+    assert np.allclose(batch.grad, [[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]])
+
+    assert bias.grad.shape == (2,)
+    assert np.allclose(bias.grad, [3.0, 3.0])

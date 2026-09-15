@@ -112,6 +112,50 @@ def accumulate_gradient(tensor: "Tensor", gradient: np.ndarray) -> None:
         tensor.grad += gradient
 
 
+def unbroadcast(gradient: np.ndarray, shape: tuple) -> np.ndarray:
+    """
+    Sum `gradient` back down to `shape`, undoing whatever broadcasting
+    NumPy performed during the forward pass.
+
+    Why is this needed?
+
+    Operations like `result = left + right` are allowed to have `left`
+    and `right` at DIFFERENT shapes, as long as NumPy can broadcast them
+    together. The classic example is a bias vector added to a batch:
+
+        x @ weight   ->  shape (batch, out_features)
+        + bias       ->  shape (out_features,)
+        = result     ->  shape (batch, out_features)
+
+    During forward(), NumPy conceptually stretches `bias` across the
+    batch dimension to make the shapes match. During backward(), the
+    incoming gradient has the STRETCHED shape (batch, out_features), but
+    `bias` itself only has shape (out_features,). Every one of the
+    `batch` copies of `bias` contributed to the result, so their
+    gradients must be summed together to get a single gradient the same
+    shape as `bias`.
+
+    NumPy's broadcasting rule, in reverse:
+
+        1. If `gradient` has more dimensions than `shape`, those EXTRA
+           leading dimensions must be summed away entirely (they don't
+           exist in the original tensor at all).
+        2. For any remaining dimension where `shape` has size 1 but
+           `gradient` doesn't, that dimension was stretched from 1 up to
+           its full size, so it must be summed (keeping the dimension,
+           now back at size 1).
+    """
+
+    while gradient.ndim > len(shape):
+        gradient = gradient.sum(axis=0)
+
+    for axis, dim in enumerate(shape):
+        if dim == 1 and gradient.shape[axis] != 1:
+            gradient = gradient.sum(axis=axis, keepdims=True)
+
+    return gradient
+
+
 # ---------------------------------------------------------------------------
 # Graph traversal
 # ---------------------------------------------------------------------------
@@ -344,15 +388,17 @@ def backward_add(
 
     Note:
     -----
-    This v0.1 rule assumes compatible shapes without trying to solve
-    the full broadcasting problem yet.
+    `left` and `right` may have different shapes if NumPy broadcast them
+    together during the forward pass (e.g. adding a bias vector to a
+    batch). `unbroadcast` sums the incoming gradient back down to each
+    parent's own shape before accumulating it.
     """
 
     if result.grad is None:
         return
 
-    accumulate_gradient(left, result.grad)
-    accumulate_gradient(right, result.grad)
+    accumulate_gradient(left, unbroadcast(result.grad, left.data.shape))
+    accumulate_gradient(right, unbroadcast(result.grad, right.data.shape))
 
 
 def backward_subtract(
