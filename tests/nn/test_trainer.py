@@ -97,6 +97,28 @@ def test_fit_updates_parameters_via_optimizer():
     assert not np.allclose(model.weight.data, initial_weight)
 
 
+def test_fit_records_history_matching_returned_loss():
+    """
+    self.history should collect one entry per epoch, and the last entry
+    must equal the value fit() returns.
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    Y = np.array([[0.0], [0.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    loss_fn = MSE()
+    optimizer = SGD(model.parameters(), lr=0.0)
+
+    trainer = Trainer()
+    avg_loss = trainer.fit(model, loss_fn, optimizer, dataloader, epochs=5)
+
+    assert len(trainer.history) == 5
+    assert trainer.history[-1] == avg_loss
+
+
 def test_fit_zero_grads_before_each_batch():
     """
     zero_grad() must run before each batch's backward(), not once per

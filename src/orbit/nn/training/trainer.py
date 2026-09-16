@@ -5,7 +5,7 @@ from orbit.nn.optimizers.optimizer import Optimizer
 
 class Trainer:
     def __init__(self):
-        pass
+        self.history = []
 
     def fit(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int,
             verbose: bool = False, log_every: int = 100):
@@ -28,5 +28,7 @@ class Trainer:
 
             if verbose and e % log_every == 0:
                 print(f"{e} | {avg_loss}")
+
+            self.history.append(avg_loss)
 
         return avg_loss
