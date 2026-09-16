@@ -1,7 +1,7 @@
-from orbit.core.dataloader import DataLoader
-from orbit.nn.module import Module
-from orbit.nn.losses.loss import Loss
-from orbit.nn.optimizers.optimizer import Optimizer
+from orbit.core import DataLoader
+from orbit.nn import Module
+from orbit.nn.losses import Loss
+from orbit.nn.optimizers import Optimizer
 
 class Trainer:
     def __init__(self):

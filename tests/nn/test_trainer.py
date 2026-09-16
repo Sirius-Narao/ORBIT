@@ -1,10 +1,9 @@
 import numpy as np
-from orbit.core.dataset import TensorDataset
-from orbit.core.dataloader import DataLoader
-from orbit.nn.layers.linear import Linear
-from orbit.nn.losses.mse import MSE
+from orbit.core import TensorDataset, DataLoader
+from orbit.nn.layers import Linear
+from orbit.nn.losses import MSE
 from orbit.nn.optimizers import SGD
-from orbit.nn.training.trainer import Trainer
+from orbit.nn.training import Trainer
 
 
 def make_fixed_linear(weight, bias):

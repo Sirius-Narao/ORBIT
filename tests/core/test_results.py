@@ -1,6 +1,6 @@
 import numpy as np
 import json
-from orbit.core.results import Results
+from orbit.core import Results
 
 
 def test_results_stores_fields():

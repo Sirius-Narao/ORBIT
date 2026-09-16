@@ -6,7 +6,7 @@ Tests for activation functions and their integration with ORBIT's autograd engin
 """
 
 import numpy as np
-from orbit.core.tensor import Tensor
+from orbit.core import Tensor
 from orbit.nn.activations import ReLU, Sigmoid, Tanh, Softmax
 
 

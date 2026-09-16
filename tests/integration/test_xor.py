@@ -1,12 +1,10 @@
-from orbit.nn.module import Module
-from orbit.nn.layers.linear import Linear
+from orbit.nn import Module
+from orbit.nn.layers import Linear
 from orbit.nn.activations import Tanh, Sigmoid
-from orbit.nn.losses.mse import MSE
+from orbit.nn.losses import MSE
 from orbit.nn.optimizers import SGD
-from orbit.core import Tensor
-from orbit.core.dataset import TensorDataset
-from orbit.core.dataloader import DataLoader
-from orbit.nn.training.trainer import Trainer
+from orbit.core import Tensor, TensorDataset, DataLoader
+from orbit.nn.training import Trainer
 
 class XORModel(Module):
     def __init__(self):

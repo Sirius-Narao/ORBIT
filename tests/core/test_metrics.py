@@ -1,5 +1,4 @@
-from orbit.core.tensor import Tensor
-from orbit.core.metrics import accuracy, accuracy_multiclass
+from orbit.core import Tensor, accuracy, accuracy_multiclass
 
 
 def test_accuracy_partial_match():

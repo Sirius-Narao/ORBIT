@@ -1,8 +1,7 @@
 import numpy as np
 import pytest
-from orbit.core.tensor import Tensor
-from orbit.nn.parameter import Parameter
-from orbit.nn.module import Module
+from orbit.core import Tensor
+from orbit.nn import Parameter, Module
 
 
 class LinearDummy(Module):

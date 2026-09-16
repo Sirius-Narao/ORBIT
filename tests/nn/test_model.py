@@ -1,8 +1,7 @@
 import numpy as np
-from orbit.core.tensor import Tensor
-from orbit.nn.module import Module
-from orbit.nn.model import Sequential
-from orbit.nn.layers.linear import Linear
+from orbit.core import Tensor
+from orbit.nn import Module, Sequential
+from orbit.nn.layers import Linear
 from orbit.nn.activations import Tanh, Sigmoid
 
 

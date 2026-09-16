@@ -1,5 +1,5 @@
 from orbit.nn.losses.loss import Loss
-from orbit.core.tensor import Tensor
+from orbit.core import Tensor
 from orbit.core.autograd import backward_cross_entropy
 import numpy as np
 

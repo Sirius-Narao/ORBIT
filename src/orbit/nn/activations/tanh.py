@@ -3,7 +3,7 @@ try:
     from .activation import Activation
 except ImportError:
     from orbit.nn.activations.activation import Activation
-from orbit.core.tensor import Tensor
+from orbit.core import Tensor
 
 class Tanh(Activation):
     """

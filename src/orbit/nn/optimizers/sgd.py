@@ -1,4 +1,4 @@
-from orbit.nn.parameter import Parameter
+from orbit.nn import Parameter
 import numpy as np
 try:
     from .optimizer import Optimizer

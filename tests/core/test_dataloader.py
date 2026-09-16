@@ -1,7 +1,5 @@
 import numpy as np
-from orbit.core.tensor import Tensor
-from orbit.core.dataset import TensorDataset
-from orbit.core.dataloader import DataLoader
+from orbit.core import Tensor, TensorDataset, DataLoader
 
 
 def make_dataset(n_rows=5):

@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
-from orbit.core.tensor import Tensor
-from orbit.core.dataset import TensorDataset
+from orbit.core import Tensor, TensorDataset
 
 
 def test_len_returns_row_count():

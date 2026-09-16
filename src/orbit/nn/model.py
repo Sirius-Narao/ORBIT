@@ -1,4 +1,4 @@
-from orbit.nn.module import Module
+from orbit.nn import Module
 from orbit.core import Tensor
 class Sequential(Module):
     def __init__(self, *layers: Module):
@@ -14,7 +14,7 @@ class Sequential(Module):
 
 
 if __name__ == "__main__":
-    from orbit.nn.layers.linear import Linear
+    from orbit.nn.layers import Linear
     from orbit.nn.activations import Tanh, Sigmoid
     import numpy as np
 

@@ -1,4 +1,4 @@
-from orbit.core.tensor import Tensor
+from orbit.core import Tensor
 from typing import Union, Optional, List
 import numpy as np
 

@@ -4,11 +4,60 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What ORBIT is
 
-ORBIT (Open Research & Benchmarking Intelligence Toolkit) is a **terminal-first AI/research toolkit**, not a PyTorch clone. The end vision: the user configures an experiment (dataset, model architecture, training setup) through an interactive CLI, and ORBIT handles dataset loading, model construction, training, and result storage — the user should rarely hand-write a training loop or manually call `loss.backward()` / `optimizer.step()`. See the project's stated vision for the full CLI/UX design (an arrow-key model-builder questionnaire, `orbit import <dataset>`, `orbit experiment new`, etc.) if asked to build toward it.
+ORBIT (Open Research & Benchmarking Intelligence Toolkit) is a **terminal-first AI/research toolkit**, not a PyTorch clone. Core philosophy: *the user specifies the experiment → ORBIT handles the machinery → ORBIT records the results → the user analyzes and reproduces them.*
+
+**Hard architectural rule: experiments are declarative saved configs, not Python scripts.** The user never hand-writes a `.py` file that builds a `Model`/`Optimizer`/`Trainer` and calls `.run()` — that's ORBIT's own internal engine code (what you're writing in `src/orbit/`), not user-facing. `orbit new` interactively walks the user through configuring dataset/model/optimizer/hyperparams and saves the result as a JSON config; `orbit run <experiment>` loads that saved config and is what actually constructs the `Tensor`/`Model`/`Loss`/`Optimizer`/`Trainer` objects and executes training. Flow: `experiment.json` → ORBIT engine (`core`/`nn`) → results.
+
+On-disk layout (per experiment):
+```
+.orbits/
+└── experiments/
+    └── <name>/
+        ├── experiment.json   # the saved config
+        ├── results/
+        └── checkpoints/
+```
+Example `experiment.json`, corrected schema (resolves the two gaps in the original draft: `loss` is now an explicit field, and the first layer explicitly carries `in_features` since nothing else in the schema states input dimensionality):
+```json
+{
+  "name": "xor_mlp_01",
+  "dataset": "xor",
+  "model": [
+    {"type": "Linear", "in_features": 2, "neurons": 8},
+    {"type": "Tanh"},
+    {"type": "Linear", "neurons": 1},
+    {"type": "Sigmoid"}
+  ],
+  "loss": "MSE",
+  "optimizer": "SGD",
+  "learning_rate": 2.0,
+  "batch_size": 4,
+  "epochs": 3000
+}
+```
+(`mnist`/`Adam` from the original draft don't exist in ORBIT yet — see the config-loader v1 scope note below. `batch_size` defaults to `DataLoader`'s own default, `32`, if omitted.) Only the first layer in `model` needs `in_features`; every layer after it infers its input width from the previous layer's `neurons`.
+
+**Full command surface** (only `run`'s *engine* half — `Trainer`/`Experiment`/`Optimizer`/`Dataset` — is implemented so far; none of the CLI commands themselves exist yet, all of `cli/` is still stub):
+- `orbit` — opens the interactive ORBIT research environment.
+- `orbit init` — initializes a new ORBIT project.
+- `orbit import <dataset>` — imports and registers a dataset into the environment.
+- `orbit run` — starts an experiment setup flow (configure dataset/model/optimizer/training settings), then runs it. *(Distinct from `orbit run <experiment>` reproducing a saved config — the same verb covers both "configure then run" and "load then run.")*
+- `orbit new` / `orbit new --template <name>` — creates a new experiment interactively (optionally from a template), still asking the user to configure it.
+- `orbit list` — lists previously recorded experiments.
+- `orbit inspect <id>` — shows an experiment's configuration, metrics, recorded info.
+- `orbit compare <id> <id> ...` — compares experiments via metrics/stats/visualizations.
+- `orbit reproduce <id>` — re-runs an experiment from its recorded configuration.
+- `orbit copy <id>` — creates a new experiment using an existing one's config as defaults, editable.
+- `orbit plot <id>` — visualizes results (loss, accuracy, gradients, weights, activations).
+- `orbit sweep create/start/status/resume/compare/plot/export/reproduce` — hyperparameter sweep lifecycle: define a search space, launch all configs, check progress, resume an interrupted sweep without rerunning completed configs, analyze/compare/plot across configs, export (e.g. CSV), or recreate an entire past sweep.
+
+Note: `experiments/xor/experiment.py` and `experiments/mnist/experiment.py` (currently empty) predate this corrected architecture and were scaffolded assuming a script-based model — they're likely the wrong shape now (should probably become `.orbits/experiments/<name>/experiment.json`-style configs instead, or get removed). Don't fill them in as `.py` scripts without checking first.
 
 **Current reality**: the core tensor/autograd engine, the NN building blocks (`Module`, `Parameter`, `Linear`, `Sequential`, activations, losses), a minibatch data pipeline (`Dataset`/`DataLoader`), a batched training loop (`Optimizer`/`SGD`, `Trainer`), and an `Experiment`/`Results` orchestration layer all exist and are tested end-to-end (see `tests/integration/test_xor.py` for the full Tensor → Module → Linear → Activation → Loss → autograd → Optimizer round trip, and `tests/core/test_experiment.py` for the `Experiment`/`Results` layer on top of it). Everything under `cli/`, `storage/`, `sweeps/`, `research/`, `visualization/`, `simulation/`, `core/config.py`, and `core/metrics.py` is still an empty stub file (0 bytes) sketching the intended architecture — do not assume any of it is implemented, and do not build out large swaths of it speculatively. Implement only what the current task needs, matching the style of the existing engine code.
 
-**Roadmap**: the original 5-step plan — (1) `Dataset`/`DataLoader`, (2) batch `Trainer.fit` off a `DataLoader`, (3) a `Sequential` container in `nn/model.py`, (4) plain metric functions in `core/metrics.py`, (5) `Experiment`/`Results` objects bundling model+data+hyperparams+history — is done. Next real phase, in order: `storage/` (persist an `Experiment`'s config + a `Results` object to disk — this is the first storage/reproducibility layer, and unblocks `tests/integration/test_reproducibility.py` which is currently an empty stub), then `cli/` (the arrow-key model builder, `orbit experiment new`), then `sweeps/`, `visualization/`, `research/` — each layers on the ones before it, so don't jump ahead.
+**Roadmap**: the original 5-step engine plan — (1) `Dataset`/`DataLoader`, (2) batch `Trainer.fit` off a `DataLoader`, (3) a `Sequential` container in `nn/model.py`, (4) plain metric functions in `core/metrics.py`, (5) `Experiment`/`Results` objects bundling model+data+hyperparams+history — is done, plus a first `storage/` layer (`storage/experiments.py`: `save_results`/`load_results`, JSON round-trip of a `Results`) and a reproducibility proof (`tests/integration/test_reproducibility.py`: seeding before construction makes a whole run — random init + shuffling — reproducible). None of `cli/` is built yet. The next phase is a **config loader** — naturally `core/config.py`, currently an empty stub — that takes a parsed `experiment.json`-shaped dict and builds the real `Dataset`/`Sequential`/`Optimizer`/`Loss`/`Experiment` objects from it via a type registry (string `"Linear"`/`"SGD"`/etc. → the actual class); every `cli/` command (`new`, `run`, `reproduce`, `copy`, ...) ultimately reads or writes that config shape, so this sits underneath all of them.
+
+**Config-loader v1 scope** (deliberately narrow — cover only what ORBIT already has, not the full example schema above): `optimizer` supports `"SGD"` only (`SGD` is the only `Optimizer` subclass that exists — no `"Adam"` yet); `dataset` resolves through a small registry of inline datasets ORBIT already effectively has (e.g. `"xor"` → the 4-row XOR data used throughout `tests/`), not a real `orbit import`-backed dataset system; `model` layer `"type"` supports whatever's implemented in `nn/`: `Linear`, `ReLU`, `Tanh`, `Sigmoid`, `Softmax`. `Adam`, real dataset import, and anything beyond this list are separate, later steps.
 
 ## Commands
 

@@ -1,5 +1,5 @@
 from orbit.nn.losses.loss import Loss
-from orbit.core.tensor import Tensor
+from orbit.core import Tensor
 
 class MSE(Loss):
 

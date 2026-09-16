@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from orbit.nn.parameter import Parameter
+from orbit.nn import Parameter
 from orbit.nn.optimizers import SGD
 
 

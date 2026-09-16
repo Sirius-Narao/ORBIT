@@ -1,10 +1,9 @@
 from typing import Optional
-from orbit.nn.losses.loss import Loss
-from orbit.nn.module import Module
-from orbit.nn.optimizers.optimizer import Optimizer
-from orbit.nn.training.trainer import Trainer
-from orbit.core.dataloader import DataLoader
-from orbit.core.results import Results
+from orbit.nn import Module
+from orbit.nn.losses import Loss
+from orbit.nn.optimizers import Optimizer
+from orbit.nn.training import Trainer
+from orbit.core import DataLoader, Results
 
 class Experiment:
     def __init__(

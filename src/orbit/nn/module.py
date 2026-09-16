@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Iterator
-from orbit.core.tensor import Tensor
-from orbit.nn.parameter import Parameter
+from orbit.core import Tensor
+from orbit.nn import Parameter
 
 
 class Module:

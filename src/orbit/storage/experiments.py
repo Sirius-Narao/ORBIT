@@ -1,6 +1,8 @@
-from orbit.core.results import Results
+from orbit.core import Results
 import pathlib
 import json
+
+EXPERIMENTS_ROOT = pathlib.Path(".orbits/experiments")
 
 def save_results(results: Results, path: str) -> None:
     path = pathlib.Path(path)
@@ -15,4 +17,7 @@ def load_results(path: str) -> Results:
         data = json.load(f)
 
     return Results.from_dict(data)
+
+def experiment_dir(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> pathlib.Path:
+    return root/name
 

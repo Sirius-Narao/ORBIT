@@ -1,5 +1,5 @@
 import numpy as np
-from orbit.core.tensor import Tensor
+from orbit.core import Tensor
 
 
 def accuracy(y_pred: Tensor, y_true: Tensor, threshold: float = 0.5) -> float:

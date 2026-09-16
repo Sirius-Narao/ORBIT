@@ -21,7 +21,7 @@ to understand WHY it failed instead of staring at a 500-line test.
 
 import numpy as np
 
-from orbit.core.tensor import Tensor
+from orbit.core import Tensor
 
 
 # ===========================================================================

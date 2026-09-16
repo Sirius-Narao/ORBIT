@@ -1,4 +1,4 @@
-from orbit.nn.module import Module
+from orbit.nn import Module
 import numpy as np
 
 class Activation(Module):

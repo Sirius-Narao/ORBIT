@@ -1,6 +1,5 @@
-from orbit.nn.module import Module
-from orbit.nn.parameter import Parameter
-from orbit.core.tensor import Tensor
+from orbit.nn import Module, Parameter
+from orbit.core import Tensor
 import numpy as np
 
 class Linear(Module):
