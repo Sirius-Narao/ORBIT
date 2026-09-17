@@ -5,6 +5,7 @@ Summary: Open Research & Benchmarking Intelligence Toolkit
 License-File: LICENSE
 Requires-Dist: numpy
 Requires-Dist: matplotlib
+Requires-Dist: questionary
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
 Dynamic: license-file

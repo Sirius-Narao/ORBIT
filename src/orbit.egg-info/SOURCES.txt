@@ -6,6 +6,7 @@ src/orbit/__main__.py
 src/orbit.egg-info/PKG-INFO
 src/orbit.egg-info/SOURCES.txt
 src/orbit.egg-info/dependency_links.txt
+src/orbit.egg-info/entry_points.txt
 src/orbit.egg-info/requires.txt
 src/orbit.egg-info/top_level.txt
 src/orbit/cli/__init__.py
@@ -33,6 +34,7 @@ src/orbit/nn/model.py
 src/orbit/nn/module.py
 src/orbit/nn/parameter.py
 src/orbit/nn/activations/__init__.py
+src/orbit/nn/activations/activation.py
 src/orbit/nn/activations/relu.py
 src/orbit/nn/activations/sigmoid.py
 src/orbit/nn/activations/softmax.py
@@ -41,6 +43,7 @@ src/orbit/nn/layers/__init__.py
 src/orbit/nn/layers/linear.py
 src/orbit/nn/losses/__init__.py
 src/orbit/nn/losses/cross_entropy.py
+src/orbit/nn/losses/loss.py
 src/orbit/nn/losses/mse.py
 src/orbit/nn/optimizers/__init__.py
 src/orbit/nn/optimizers/optimizer.py

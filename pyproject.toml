@@ -9,6 +9,7 @@ description = "Open Research & Benchmarking Intelligence Toolkit"
 dependencies = [
     "numpy",
     "matplotlib",
+    "questionary",
 ]
 
 [project.optional-dependencies]
@@ -18,3 +19,6 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.scripts]
+orbit = "orbit.cli.parser:main"
