@@ -33,7 +33,6 @@ def test_create_experiment_writes_expected_config(tmp_path, monkeypatch):
         monkeypatch,
         texts=[
             "xor_mlp_01",   # name
-            "2",            # in_features
             "8",            # neurons (layer 1)
             "1",            # neurons (layer 2)
             "2.0",          # learning_rate
@@ -82,7 +81,7 @@ def test_create_experiment_omits_batch_size_when_left_blank(tmp_path, monkeypatc
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_default_batch", "2", "1", "0.1", "", "10"],
+        texts=["xor_default_batch", "1", "0.1", "", "10"],
         selects=["xor", "Linear", "Done", "MSE", "SGD"],
     )
 
@@ -92,3 +91,97 @@ def test_create_experiment_omits_batch_size_when_left_blank(tmp_path, monkeypatc
         config = json.load(f)
 
     assert "batch_size" not in config
+
+
+def test_create_experiment_fills_in_features_from_dataset_without_prompting(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+
+    # Only 5 canned text answers: name, neurons, learning_rate, batch_size
+    # (blank), epochs. There is deliberately no answer for in_features - if
+    # create_experiment() still prompted for it, this would either raise
+    # StopIteration or shift every later answer by one and fail below.
+    fake_prompts(
+        monkeypatch,
+        texts=["xor_single_layer", "1", "0.05", "", "8"],
+        selects=["xor", "Linear", "Done", "MSE", "SGD"],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert config["model"] == [{"type": "Linear", "in_features": 2, "neurons": 1}]
+
+    captured = capsys.readouterr()
+    assert "2 input feature(s)" in captured.out
+
+
+def test_create_experiment_rejects_output_shape_mismatch_and_lets_user_fix_it(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+
+    # First attempt ends in a Linear(2, 5) - xor only has 1 output feature,
+    # so "Done" must be rejected instead of saving a broken config. The user
+    # then adds a corrective Linear(5, 1) and finishes again, which should
+    # succeed this time.
+    fake_prompts(
+        monkeypatch,
+        texts=["bad_output_then_fixed", "5", "1", "0.1", "", "10"],
+        selects=["xor", "Linear", "Done", "Linear", "Done", "MSE", "SGD"],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert config["model"] == [
+        {"type": "Linear", "in_features": 2, "neurons": 5},
+        {"type": "Linear", "neurons": 1},
+    ]
+
+    captured = capsys.readouterr()
+    assert "Invalid model" in captured.out
+
+
+def test_create_experiment_dataset_picker_includes_imported_datasets(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+    # Stand in for an imported CSV dataset showing up in the picker, without
+    # touching the real .orbits/datasets/ directory or DATASET_REGISTRY.
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.list_dataset_names", lambda: ["xor", "housing"]
+    )
+
+    class FakeImportedDataset:
+        input_shape = 3
+        output_shape = 1
+
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.build_dataset", lambda name: FakeImportedDataset()
+    )
+
+    fake_prompts(
+        monkeypatch,
+        texts=["housing_model", "1", "0.1", "", "50"],
+        selects=["housing", "Linear", "Done", "MSE", "SGD"],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert config["dataset"] == "housing"
+    assert config["model"] == [{"type": "Linear", "in_features": 3, "neurons": 1}]

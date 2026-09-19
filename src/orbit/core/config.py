@@ -1,3 +1,4 @@
+import csv
 import numpy as np
 from typing import Optional
 
@@ -8,10 +9,13 @@ from orbit.nn.layers import Linear
 from orbit.nn.activations import ReLU, Tanh, Sigmoid, Softmax
 from orbit.nn.losses import MSE, CrossEntropy
 from orbit.nn.optimizers import SGD
+from orbit.storage import dataset_exists, dataset_dir, load_dataset_manifest, list_imported_dataset_names
 
 # --- dataset registry -------------------------------------------------------
 # Each entry is a zero-arg factory (not a built Dataset) so every call to
 # build_dataset() returns a fresh object instead of a shared/reused one.
+# Imported (CSV) datasets are a separate lookup, not merged into this dict -
+# see _load_csv_dataset() and build_dataset()'s fallback below.
 
 def _xor_dataset() -> Dataset:
     X = [[0, 0], [0, 1], [1, 0], [1, 1]]
@@ -22,10 +26,42 @@ DATASET_REGISTRY = {
     "xor": _xor_dataset,
 }
 
+def _load_csv_dataset(name: str) -> Dataset:
+    manifest = load_dataset_manifest(name)
+    input_columns = manifest["input_columns"]
+    output_columns = manifest["output_columns"]
+
+    csv_path = dataset_dir(name) / "data.csv"
+    with open(csv_path, newline="") as f:
+        rows = list(csv.DictReader(f))
+
+    def _column_values(row, columns):
+        values = []
+        for column in columns:
+            try:
+                values.append(float(row[column]))
+            except ValueError:
+                raise ValueError(
+                    f"Dataset {name!r}: column {column!r} has a non-numeric "
+                    f"value ({row[column]!r}) - only numeric CSV columns are "
+                    "supported"
+                )
+        return values
+
+    X = [_column_values(row, input_columns) for row in rows]
+    Y = [_column_values(row, output_columns) for row in rows]
+
+    return TensorDataset(np.array(X), np.array(Y))
+
+def list_dataset_names() -> list:
+    return list(DATASET_REGISTRY) + list_imported_dataset_names()
+
 def build_dataset(name: str) -> Dataset:
-    if name not in DATASET_REGISTRY:
-        raise ValueError(f"Unknown dataset: {name!r}")
-    return DATASET_REGISTRY[name]()
+    if name in DATASET_REGISTRY:
+        return DATASET_REGISTRY[name]()
+    if dataset_exists(name):
+        return _load_csv_dataset(name)
+    raise ValueError(f"Unknown dataset: {name!r}")
 
 # --- model registry ----------------------------------------------------------
 # Types split into "shape-changing" (Linear, needs in/out features) and
@@ -39,7 +75,7 @@ LAYER_REGISTRY = {
     "Softmax": Softmax,
 }
 
-def build_model(layer_configs: list) -> Sequential:
+def build_model(layer_configs: list, dataset: Optional[Dataset] = None) -> Sequential:
     layers = []
     in_features = None
 
@@ -53,11 +89,26 @@ def build_model(layer_configs: list) -> Sequential:
                 in_features = layer_config.get("in_features")
                 if in_features is None:
                     raise ValueError("The first layer must specify 'in_features'")
+                if dataset is not None and in_features != dataset.input_shape:
+                    raise ValueError(
+                        f"Model's first layer expects in_features={in_features}, "
+                        f"but dataset {dataset!r} provides {dataset.input_shape} "
+                        "input feature(s)"
+                    )
             out_features = layer_config["neurons"]
             layers.append(Linear(in_features, out_features))
             in_features = out_features
         else:
             layers.append(LAYER_REGISTRY[layer_type]())
+
+    # After the loop, in_features holds the last Linear layer's out_features
+    # (activations don't change it) - i.e. the model's actual output width.
+    if dataset is not None and in_features != dataset.output_shape:
+        raise ValueError(
+            f"Model's last layer produces {in_features} output feature(s), "
+            f"but dataset {dataset!r} expects {dataset.output_shape} "
+            "output feature(s)"
+        )
 
     return Sequential(*layers)
 
@@ -94,7 +145,7 @@ def load_experiment(config: dict) -> Experiment:
     run it - the caller decides when to call .run().
     """
     dataset = build_dataset(config["dataset"])
-    model = build_model(config["model"])
+    model = build_model(config["model"], dataset)
     loss_fn = build_loss(config["loss"])
     optimizer = build_optimizer(config["optimizer"], model.parameters(), config["learning_rate"])
     dataloader = DataLoader(dataset, batch_size=config.get("batch_size", 32))

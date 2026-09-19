@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+import orbit.core.config as config_module
 from orbit.core.config import build_dataset, build_model, build_loss, build_optimizer, load_experiment
 from orbit.core import Results
 from orbit.core.experiment import Experiment
@@ -22,6 +23,51 @@ def test_build_dataset_xor_has_four_rows_of_two_features():
 def test_build_dataset_unknown_name_raises():
     with pytest.raises(ValueError):
         build_dataset("mnist")
+
+
+def _fake_imported_dataset(monkeypatch, tmp_path, manifest, csv_text, name="housing"):
+    """
+    Stands in for what orbit import would have written to disk: a
+    dataset.json manifest plus a data.csv, without touching the real
+    .orbits/datasets/ directory. Patches the storage helpers build_dataset
+    actually calls, the same way tests/cli/test_new.py patches
+    experiment_dir rather than the real filesystem location.
+    """
+    dataset_path = tmp_path / name
+    dataset_path.mkdir()
+    (dataset_path / "data.csv").write_text(csv_text)
+
+    monkeypatch.setattr(config_module, "dataset_exists", lambda n: n == name)
+    monkeypatch.setattr(config_module, "dataset_dir", lambda n: dataset_path)
+    monkeypatch.setattr(config_module, "load_dataset_manifest", lambda n: manifest)
+
+
+def test_build_dataset_resolves_an_imported_csv_dataset(monkeypatch, tmp_path):
+    _fake_imported_dataset(
+        monkeypatch,
+        tmp_path,
+        manifest={"input_columns": ["a", "b"], "output_columns": ["c"]},
+        csv_text="a,b,c\n1,2,3\n4,5,6\n",
+    )
+
+    dataset = build_dataset("housing")
+
+    assert len(dataset) == 2
+    x, y = dataset[0]
+    assert list(x) == [1.0, 2.0]
+    assert list(y) == [3.0]
+
+
+def test_build_dataset_imported_csv_non_numeric_cell_raises(monkeypatch, tmp_path):
+    _fake_imported_dataset(
+        monkeypatch,
+        tmp_path,
+        manifest={"input_columns": ["a", "b"], "output_columns": ["c"]},
+        csv_text="a,b,c\n1,not_a_number,3\n",
+    )
+
+    with pytest.raises(ValueError):
+        build_dataset("housing")
 
 
 def test_build_model_infers_in_features_from_previous_layer():
@@ -51,6 +97,77 @@ def test_build_model_first_layer_missing_in_features_raises():
 def test_build_model_unknown_type_raises():
     with pytest.raises(ValueError):
         build_model([{"type": "Conv2d", "neurons": 8}])
+
+
+def test_build_model_without_dataset_skips_shape_validation():
+    # build_model must keep working standalone, with no dataset argument,
+    # for callers (like the tests above) that only care about layer wiring.
+    model = build_model([{"type": "Linear", "in_features": 2, "neurons": 1}])
+
+    layers = list(model._modules.values())
+    assert layers[0].weight.shape == (2, 1)
+
+
+def test_build_model_matching_dataset_input_and_output_shape_succeeds():
+    dataset = build_dataset("xor")  # 2 input features, 1 output feature
+
+    model = build_model(
+        [
+            {"type": "Linear", "in_features": 2, "neurons": 8},
+            {"type": "Linear", "neurons": 1},
+        ],
+        dataset,
+    )
+
+    layers = list(model._modules.values())
+    assert layers[0].weight.shape == (2, 8)
+    assert layers[1].weight.shape == (8, 1)
+
+
+def test_build_model_mismatched_dataset_input_shape_raises():
+    dataset = build_dataset("xor")  # 2 input features
+
+    with pytest.raises(ValueError):
+        build_model(
+            [{"type": "Linear", "in_features": 5, "neurons": 1}],
+            dataset,
+        )
+
+
+def test_build_model_mismatched_dataset_output_shape_raises():
+    dataset = build_dataset("xor")  # 1 output feature
+
+    with pytest.raises(ValueError):
+        build_model(
+            [{"type": "Linear", "in_features": 2, "neurons": 5}],
+            dataset,
+        )
+
+
+def test_build_model_output_shape_checked_past_activation_layers():
+    dataset = build_dataset("xor")  # 1 output feature
+
+    with pytest.raises(ValueError):
+        build_model(
+            [
+                {"type": "Linear", "in_features": 2, "neurons": 8},
+                {"type": "Tanh"},
+                {"type": "Linear", "neurons": 5},
+                {"type": "Sigmoid"},
+            ],
+            dataset,
+        )
+
+
+def test_build_model_missing_in_features_raises_even_with_dataset():
+    dataset = build_dataset("xor")
+
+    # A dataset being present should not silently fill in a missing
+    # in_features - the config still has to state it explicitly, per the
+    # documented experiment.json schema. The dataset is only there to catch
+    # a *wrong* value, not to supply a missing one.
+    with pytest.raises(ValueError):
+        build_model([{"type": "Linear", "neurons": 8}], dataset)
 
 
 def test_build_loss_resolves_mse_and_cross_entropy():

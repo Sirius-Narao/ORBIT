@@ -10,6 +10,7 @@ dependencies = [
     "numpy",
     "matplotlib",
     "questionary",
+    "rich",
 ]
 
 [project.optional-dependencies]
