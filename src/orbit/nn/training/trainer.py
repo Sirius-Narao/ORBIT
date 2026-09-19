@@ -53,7 +53,7 @@ class Trainer:
         avg_loss = None
         console.print()
         with Progress(
-            TextColumn("[bold cyan]Training[/bold cyan]"),
+            TextColumn("[bold #ffeab0]Training[/bold #ffeab0]"),
             BarColumn(),
             TaskProgressColumn(),
             TextColumn("epoch {task.completed}/{task.total}"),

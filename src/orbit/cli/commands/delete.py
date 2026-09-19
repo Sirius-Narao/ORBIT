@@ -1,5 +1,5 @@
 from orbit.storage import EXPERIMENTS_ROOT
-from orbit.ui import console, success
+from orbit.ui import console, success, warning
 import pathlib
 import shutil
 
@@ -7,14 +7,14 @@ import shutil
 def delete_experiments(name: str = None, is_all: bool = False, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
     if not root.exists():
         console.print()
-        console.print("No experiments found.", style="yellow")
+        warning("No experiments found.")
         console.print()
         return
 
     names = sorted(p.name for p in root.iterdir() if p.is_dir())
     if not names:
         console.print()
-        console.print("No experiments found.", style="yellow")
+        warning("No experiments found.")
         console.print()
         return
 
@@ -28,7 +28,7 @@ def delete_experiments(name: str = None, is_all: bool = False, root: pathlib.Pat
 
     if name not in names:
         console.print()
-        console.print(f"{name} was not found.", style="yellow")
+        warning(f"{name} was not found.")
         console.print()
         return
 

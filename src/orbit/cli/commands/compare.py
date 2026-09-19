@@ -4,21 +4,21 @@ import pathlib
 from rich.table import Table
 
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
-from orbit.ui import console
+from orbit.ui import console, warning
 
 
 def compare_experiments(names: list = None, is_all: bool = False, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
     if is_all:
         if not root.exists():
             console.print()
-            console.print("No experiments found.", style="yellow")
+            warning("No experiments found.")
             console.print()
             return
         names = sorted(p.name for p in root.iterdir() if p.is_dir())
 
     if not names:
         console.print()
-        console.print("No experiments found.", style="yellow")
+        warning("No experiments found.")
         console.print()
         return
 
@@ -39,7 +39,7 @@ def compare_experiments(names: list = None, is_all: bool = False, root: pathlib.
         config_path = exp_dir / "experiment.json"
 
         if not config_path.exists():
-            console.print(f"{name} was not found, skipping.", style="yellow")
+            warning(f"{name} was not found, skipping.")
             continue
 
         with open(config_path) as f:
@@ -67,7 +67,7 @@ def compare_experiments(names: list = None, is_all: bool = False, root: pathlib.
 
     if not found_any:
         console.print()
-        console.print("No experiments to compare.", style="yellow")
+        warning("No experiments to compare.")
         console.print()
         return
 

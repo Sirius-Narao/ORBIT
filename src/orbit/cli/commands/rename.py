@@ -2,22 +2,22 @@ import json
 import pathlib
 
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir
-from orbit.ui import console, success
+from orbit.ui import console, success, warning
 
 
 def rename_experiment(old_name: str, new_name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
     if old_name == new_name:
-        console.print("Old and new names are the same - nothing to do.", style="yellow")
+        warning("Old and new names are the same - nothing to do.")
         return
 
     old_dir = experiment_dir(old_name, root=root)
     if not (old_dir / "experiment.json").exists():
-        console.print(f"{old_name} was not found.", style="yellow")
+        warning(f"{old_name} was not found.")
         return
 
     new_dir = experiment_dir(new_name, root=root)
     if new_dir.exists():
-        console.print(f"{new_name} already exists.", style="yellow")
+        warning(f"{new_name} already exists.")
         return
 
     old_dir.rename(new_dir)

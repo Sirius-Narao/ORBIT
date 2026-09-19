@@ -108,11 +108,14 @@ def test_import_dispatches_with_defaults_when_optional_flags_omitted(monkeypatch
     assert calls == [("data.csv", None, None)]
 
 
-def test_missing_command_exits_with_error(monkeypatch):
+def test_missing_command_opens_the_repl(monkeypatch):
+    calls = []
+    monkeypatch.setattr("orbit.cli.repl.repl", lambda: calls.append("called"))
     monkeypatch.setattr("sys.argv", ["orbit"])
 
-    with pytest.raises(SystemExit):
-        parser_module.main()
+    parser_module.main()
+
+    assert calls == ["called"]
 
 
 def test_run_without_name_exits_with_error(monkeypatch):

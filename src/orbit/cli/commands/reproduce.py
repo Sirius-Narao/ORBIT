@@ -10,7 +10,7 @@ def reproduce_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> No
     results_path = exp_dir / "results" / "results.json"
 
     if not results_path.exists():
-        console.print(f"{name} has no recorded results to reproduce (run it first).", style="yellow")
+        warning(f"{name} has no recorded results to reproduce (run it first).")
         return
 
     with open(exp_dir / "experiment.json") as f:

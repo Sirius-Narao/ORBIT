@@ -1,5 +1,5 @@
 from orbit.storage import EXPERIMENTS_ROOT, load_results
-from orbit.ui import console
+from orbit.ui import console, warning
 from rich.table import Table
 import pathlib
 
@@ -7,14 +7,14 @@ import pathlib
 def list_experiments(root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
     if not root.exists():
         console.print()
-        console.print("No experiments found.", style="yellow")
+        warning("No experiments found.")
         console.print()
         return
 
     names = sorted(p.name for p in root.iterdir() if p.is_dir())
     if not names:
         console.print()
-        console.print("No experiments found.", style="yellow")
+        warning("No experiments found.")
         console.print()
         return
 

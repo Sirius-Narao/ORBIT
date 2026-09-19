@@ -6,7 +6,7 @@ import questionary
 
 from orbit.cli.commands.new import _ask_float, _ask_int, _ask_optional_int, _print_config_summary
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir
-from orbit.ui import PROMPT_STYLE, console, success
+from orbit.ui import PROMPT_STYLE, console, success, warning
 
 
 def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
@@ -25,7 +25,7 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
     source_config_path = experiment_dir(source_name, root=root) / "experiment.json"
 
     if not source_config_path.exists():
-        console.print(f"{source_name} was not found.", style="yellow")
+        warning(f"{source_name} was not found.")
         return None
 
     with open(source_config_path) as f:

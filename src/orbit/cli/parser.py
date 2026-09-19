@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 from orbit.cli.commands.new import create_experiment
 from orbit.cli.commands.run import run_experiment
@@ -92,10 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    parser = build_parser()
-    args = parser.parse_args()
-
+def _dispatch(args: argparse.Namespace) -> None:
     if args.command == "new":
         create_experiment()
     elif args.command == "list":
@@ -119,3 +117,15 @@ def main() -> None:
         rename_experiment(args.old_name, args.new_name)
     elif args.command == "import":
         import_dataset(args.csv_path, name=args.name, target_columns=args.target)
+
+
+def main() -> None:
+    if len(sys.argv) <= 1:
+        from orbit.cli.repl import repl
+
+        repl()
+        return
+
+    parser = build_parser()
+    args = parser.parse_args()
+    _dispatch(args)

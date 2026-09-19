@@ -3,7 +3,7 @@ import pathlib
 
 from orbit.cli.commands.new import _print_config_summary
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
-from orbit.ui import console, info
+from orbit.ui import console, info, warning
 
 
 def inspect_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
@@ -12,7 +12,7 @@ def inspect_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None
 
     if not config_path.exists():
         console.print()
-        console.print(f"{name} was not found.", style="yellow")
+        warning(f"{name} was not found.")
         console.print()
         return
 
