@@ -51,6 +51,7 @@ class Trainer:
 
     def _fit_with_progress_bar(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int) -> float:
         avg_loss = None
+        console.print()
         with Progress(
             TextColumn("[bold cyan]Training[/bold cyan]"),
             BarColumn(),
@@ -66,5 +67,6 @@ class Trainer:
                 avg_loss = self._run_epoch(model, loss_fn, optimizer, dataloader)
                 self.history.append(avg_loss)
                 progress.update(task, advance=1, loss=avg_loss)
+        console.print()
 
         return avg_loss

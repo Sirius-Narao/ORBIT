@@ -1,6 +1,7 @@
 import json
 import pathlib
 
+import numpy as np
 import questionary
 from rich.table import Table
 
@@ -21,25 +22,25 @@ from orbit.ui import PROMPT_STYLE, console, info, success, warning
 # to select from, so those still use questionary.text - but validated so a
 # bad value re-prompts instead of producing a broken experiment.json.
 
-def _ask_int(message):
+def _ask_int(message, default=""):
     def validate(text):
         return text.strip().isdigit() or "Please enter a whole number"
 
-    answer = questionary.text(message, validate=validate, style=PROMPT_STYLE).ask()
+    answer = questionary.text(message, default=default, validate=validate, style=PROMPT_STYLE).ask()
     return int(answer.strip())
 
 
-def _ask_optional_int(message):
+def _ask_optional_int(message, default=""):
     def validate(text):
         text = text.strip()
         return text == "" or text.isdigit() or "Please enter a whole number, or leave blank"
 
-    answer = questionary.text(message, validate=validate, style=PROMPT_STYLE).ask()
+    answer = questionary.text(message, default=default, validate=validate, style=PROMPT_STYLE).ask()
     answer = answer.strip()
     return int(answer) if answer else None
 
 
-def _ask_float(message):
+def _ask_float(message, default=""):
     def validate(text):
         try:
             float(text)
@@ -47,7 +48,7 @@ def _ask_float(message):
         except ValueError:
             return "Please enter a number"
 
-    answer = questionary.text(message, validate=validate, style=PROMPT_STYLE).ask()
+    answer = questionary.text(message, default=default, validate=validate, style=PROMPT_STYLE).ask()
     return float(answer)
 
 
@@ -108,6 +109,9 @@ def create_experiment() -> pathlib.Path:
     learning_rate = _ask_float("Learning rate:")
     batch_size = _ask_optional_int("Batch size (blank = default 32):")
     epochs = _ask_int("Epochs:")
+    seed = _ask_optional_int("Seed (blank = random):")
+    if seed is None:
+        seed = int(np.random.randint(0, 2**31 - 1))
 
     config = {
         "name": name,
@@ -117,6 +121,7 @@ def create_experiment() -> pathlib.Path:
         "optimizer": optimizer,
         "learning_rate": learning_rate,
         "epochs": epochs,
+        "seed": seed,
     }
     if batch_size is not None:
         config["batch_size"] = batch_size
@@ -131,6 +136,7 @@ def create_experiment() -> pathlib.Path:
         json.dump(config, f, indent=2)
 
     success(f"Saved experiment config to {config_path}")
+    console.print()
     return config_path
 
 
@@ -157,4 +163,7 @@ def _print_config_summary(config: dict) -> None:
     table.add_row("Learning rate", str(config["learning_rate"]))
     table.add_row("Batch size", str(config.get("batch_size", "32 (default)")))
     table.add_row("Epochs", str(config["epochs"]))
+    table.add_row("Seed", str(config.get("seed", "none (not reproducible)")))
+    console.print()
     console.print(table)
+    console.print()

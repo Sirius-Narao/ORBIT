@@ -256,3 +256,49 @@ def test_load_experiment_trains_and_produces_results():
 
     assert isinstance(results, Results)
     assert results.final_loss < results.loss_history[0]
+
+
+def _seeded_config(seed=None):
+    config = {
+        "dataset": "xor",
+        "model": [
+            {"type": "Linear", "in_features": 2, "neurons": 8},
+            {"type": "Tanh"},
+            {"type": "Linear", "neurons": 1},
+            {"type": "Sigmoid"},
+        ],
+        "loss": "MSE",
+        "optimizer": "SGD",
+        "learning_rate": 2.0,
+        "batch_size": 4,
+        "epochs": 50,
+    }
+    if seed is not None:
+        config["seed"] = seed
+    return config
+
+
+def test_load_experiment_with_seed_produces_identical_runs():
+    results_a = load_experiment(_seeded_config(seed=7)).run()
+    results_b = load_experiment(_seeded_config(seed=7)).run()
+
+    assert results_a.final_loss == results_b.final_loss
+    assert results_a.loss_history == results_b.loss_history
+
+
+def test_load_experiment_without_seed_does_not_reset_rng():
+    """
+    A config with no "seed" key must not call np.random.seed() at all -
+    otherwise every unseeded config would accidentally become reproducible
+    by resetting to some fixed default, which is not what "no seed" means.
+    Verified by seeding the global RNG to two different states beforehand
+    and checking an unseeded load_experiment() run picks up each state
+    (i.e. actually draws from wherever the RNG already was).
+    """
+    np.random.seed(1)
+    results_a = load_experiment(_seeded_config()).run()
+
+    np.random.seed(2)
+    results_b = load_experiment(_seeded_config()).run()
+
+    assert results_a.loss_history != results_b.loss_history

@@ -143,7 +143,18 @@ def load_experiment(config: dict) -> Experiment:
     """
     Build an Experiment from a parsed experiment.json-shaped dict. Does not
     run it - the caller decides when to call .run().
+
+    An optional "seed" is applied via np.random.seed() before anything else
+    is built, since Linear's weight init and DataLoader's shuffle both draw
+    from the global numpy RNG - seeding first fixes both for the whole run,
+    same as tests/integration/test_reproducibility.py's build_and_run(). No
+    seed means no call at all, so an unseeded config's randomness is left
+    untouched (not reset to some fixed default).
     """
+    seed = config.get("seed")
+    if seed is not None:
+        np.random.seed(seed)
+
     dataset = build_dataset(config["dataset"])
     model = build_model(config["model"], dataset)
     loss_fn = build_loss(config["loss"])

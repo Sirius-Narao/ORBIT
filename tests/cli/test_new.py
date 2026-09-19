@@ -38,6 +38,7 @@ def test_create_experiment_writes_expected_config(tmp_path, monkeypatch):
             "2.0",          # learning_rate
             "4",            # batch_size
             "3000",         # epochs
+            "42",           # seed
         ],
         selects=[
             "xor",      # dataset
@@ -71,6 +72,7 @@ def test_create_experiment_writes_expected_config(tmp_path, monkeypatch):
         "learning_rate": 2.0,
         "batch_size": 4,
         "epochs": 3000,
+        "seed": 42,
     }
 
 
@@ -81,7 +83,7 @@ def test_create_experiment_omits_batch_size_when_left_blank(tmp_path, monkeypatc
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_default_batch", "1", "0.1", "", "10"],
+        texts=["xor_default_batch", "1", "0.1", "", "10", ""],
         selects=["xor", "Linear", "Done", "MSE", "SGD"],
     )
 
@@ -106,7 +108,7 @@ def test_create_experiment_fills_in_features_from_dataset_without_prompting(
     # StopIteration or shift every later answer by one and fail below.
     fake_prompts(
         monkeypatch,
-        texts=["xor_single_layer", "1", "0.05", "", "8"],
+        texts=["xor_single_layer", "1", "0.05", "", "8", ""],
         selects=["xor", "Linear", "Done", "MSE", "SGD"],
     )
 
@@ -134,7 +136,7 @@ def test_create_experiment_rejects_output_shape_mismatch_and_lets_user_fix_it(
     # succeed this time.
     fake_prompts(
         monkeypatch,
-        texts=["bad_output_then_fixed", "5", "1", "0.1", "", "10"],
+        texts=["bad_output_then_fixed", "5", "1", "0.1", "", "10", ""],
         selects=["xor", "Linear", "Done", "Linear", "Done", "MSE", "SGD"],
     )
 
@@ -174,7 +176,7 @@ def test_create_experiment_dataset_picker_includes_imported_datasets(
 
     fake_prompts(
         monkeypatch,
-        texts=["housing_model", "1", "0.1", "", "50"],
+        texts=["housing_model", "1", "0.1", "", "50", ""],
         selects=["housing", "Linear", "Done", "MSE", "SGD"],
     )
 
