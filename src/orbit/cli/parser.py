@@ -1,6 +1,7 @@
 import argparse
 import sys
 
+from orbit.cli.commands.init import init_project
 from orbit.cli.commands.new import create_experiment
 from orbit.cli.commands.run import run_experiment
 from orbit.cli.commands.list import list_experiments
@@ -45,6 +46,9 @@ def _warn_if_stalled(results) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="orbit")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Init command
+    init_parser = subparsers.add_parser("init", help="Initialize a new ORBIT project (.orbits/ directory structure)")
 
     # New command
     new_parser = subparsers.add_parser("new", help="Create a new experiment interactively")
@@ -102,7 +106,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _dispatch(args: argparse.Namespace) -> None:
-    if args.command == "new":
+    if args.command == "init":
+        init_project()
+    elif args.command == "new":
         create_experiment()
     elif args.command == "list":
         list_experiments()

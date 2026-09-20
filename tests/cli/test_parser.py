@@ -4,6 +4,16 @@ import pytest
 import orbit.cli.parser as parser_module
 
 
+def test_init_dispatches_to_init_project(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parser_module, "init_project", lambda: calls.append("called"))
+    monkeypatch.setattr("sys.argv", ["orbit", "init"])
+
+    parser_module.main()
+
+    assert calls == ["called"]
+
+
 def test_new_dispatches_to_create_experiment(monkeypatch):
     calls = []
     monkeypatch.setattr(parser_module, "create_experiment", lambda: calls.append("called"))
