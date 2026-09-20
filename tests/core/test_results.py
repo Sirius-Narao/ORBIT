@@ -29,6 +29,12 @@ def test_results_defaults_duration_seconds_to_none():
     assert results.duration_seconds is None
 
 
+def test_results_defaults_gradient_norm_history_to_none():
+    results = Results(name="run-2", final_loss=0.5, loss_history=[0.5])
+
+    assert results.gradient_norm_history is None
+
+
 def test_results_repr_is_a_string_and_mentions_name():
     results = Results(name="run-3", final_loss=0.5, loss_history=[1.0, 0.5])
 
@@ -78,6 +84,26 @@ def test_to_dict_duration_seconds_stays_none_when_unset():
     assert results.to_dict()["duration_seconds"] is None
 
 
+def test_to_dict_includes_gradient_norm_history_cast_to_floats():
+    results = Results(
+        name="numpy-run",
+        final_loss=0.1234,
+        loss_history=[1.0, 0.5],
+        gradient_norm_history=[np.float64(1.5), np.float64(0.9)],
+    )
+
+    data = results.to_dict()
+
+    assert all(type(g) is float for g in data["gradient_norm_history"])
+    assert data["gradient_norm_history"] == [1.5, 0.9]
+
+
+def test_to_dict_gradient_norm_history_stays_none_when_unset():
+    results = Results(name="run", final_loss=0.5, loss_history=[0.5])
+
+    assert results.to_dict()["gradient_norm_history"] is None
+
+
 def test_from_dict_round_trips_to_dict():
     original = Results(
         name="run-4",
@@ -85,6 +111,7 @@ def test_from_dict_round_trips_to_dict():
         loss_history=[1.0, 0.6, 0.42],
         hyperparams={"epochs": 3, "lr": 0.1},
         duration_seconds=3.75,
+        gradient_norm_history=[2.0, 1.2, 0.4],
     )
 
     rebuilt = Results.from_dict(original.to_dict())
@@ -94,6 +121,7 @@ def test_from_dict_round_trips_to_dict():
     assert rebuilt.loss_history == original.loss_history
     assert rebuilt.hyperparams == original.hyperparams
     assert rebuilt.duration_seconds == original.duration_seconds
+    assert rebuilt.gradient_norm_history == original.gradient_norm_history
 
 
 def test_from_dict_defaults_duration_seconds_when_missing_from_old_data():
@@ -107,3 +135,17 @@ def test_from_dict_defaults_duration_seconds_when_missing_from_old_data():
     rebuilt = Results.from_dict(old_data)
 
     assert rebuilt.duration_seconds is None
+
+
+def test_from_dict_defaults_gradient_norm_history_when_missing_from_old_data():
+    old_data = {
+        "name": "pre-gradnorm-run",
+        "final_loss": 0.5,
+        "loss_history": [1.0, 0.5],
+        "hyperparams": {},
+        "duration_seconds": 1.0,
+    }
+
+    rebuilt = Results.from_dict(old_data)
+
+    assert rebuilt.gradient_norm_history is None

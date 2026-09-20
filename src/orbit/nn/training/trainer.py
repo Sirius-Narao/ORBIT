@@ -1,5 +1,6 @@
 import time
 
+import numpy as np
 from rich.progress import (
     BarColumn,
     Progress,
@@ -15,12 +16,27 @@ from orbit.nn.losses import Loss
 from orbit.nn.optimizers import Optimizer
 from orbit.ui import console, is_tty
 
+
+def _gradient_norm(model: Module) -> float:
+    """
+    L2 norm of every parameter's gradient, flattened and concatenated - the
+    standard signal for spotting vanishing/exploding gradients. Parameters
+    whose grad is None (never involved in the loss) are skipped.
+    """
+    squared_sum = 0.0
+    for param in model.parameters():
+        if param.grad is not None:
+            squared_sum += float(np.sum(param.grad ** 2))
+    return float(np.sqrt(squared_sum))
+
+
 class Trainer:
     def __init__(self):
         self.history = []
         self.duration_seconds = None
+        self.gradient_norm_history = []
 
-    def _run_epoch(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader) -> float:
+    def _run_epoch(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader):
         total_loss = 0.0
         total_samples = 0
         for X_batch, Y_batch in dataloader:
@@ -33,7 +49,13 @@ class Trainer:
             loss.backward()
             optimizer.step()
 
-        return total_loss / total_samples
+        # zero_grad() runs at the START of each batch, not the end of the
+        # epoch, so the model's grads here still hold the last batch's
+        # values - this reports that last batch's gradient norm, not a
+        # running average across the epoch.
+        avg_loss = total_loss / total_samples
+        grad_norm = _gradient_norm(model)
+        return avg_loss, grad_norm
 
     def fit(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int,
             verbose: bool = False, log_every: int = 100):
@@ -47,12 +69,13 @@ class Trainer:
 
         avg_loss = None
         for e in range(1, epochs+1):
-            avg_loss = self._run_epoch(model, loss_fn, optimizer, dataloader)
+            avg_loss, grad_norm = self._run_epoch(model, loss_fn, optimizer, dataloader)
 
             if verbose and e % log_every == 0:
                 print(f"{e} | {avg_loss}")
 
             self.history.append(avg_loss)
+            self.gradient_norm_history.append(grad_norm)
 
         self.duration_seconds = time.time() - start
         return avg_loss
@@ -72,8 +95,9 @@ class Trainer:
         ) as progress:
             task = progress.add_task("train", total=epochs, loss=float("nan"))
             for _ in range(epochs):
-                avg_loss = self._run_epoch(model, loss_fn, optimizer, dataloader)
+                avg_loss, grad_norm = self._run_epoch(model, loss_fn, optimizer, dataloader)
                 self.history.append(avg_loss)
+                self.gradient_norm_history.append(grad_norm)
                 progress.update(task, advance=1, loss=avg_loss)
         console.print()
 

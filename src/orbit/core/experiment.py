@@ -45,4 +45,5 @@ class Experiment:
             hyperparams={"epochs": self.epochs, "lr": self.optimizer.lr, "batch_size": self.dataloader.batch_size, "loss": self.loss_fn.name},
             name = self.name,
             duration_seconds = self.trainer.duration_seconds,
+            gradient_norm_history = self.trainer.gradient_norm_history,
             )

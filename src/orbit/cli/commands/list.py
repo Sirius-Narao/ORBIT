@@ -24,6 +24,7 @@ def list_experiments(root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
     table.add_column("Final Loss")
     table.add_column("Epochs")
     table.add_column("Duration")
+    table.add_column("Final Grad Norm")
     # table.add_column("Seed")
 
     for name in names:
@@ -31,9 +32,12 @@ def list_experiments(root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
         if results_path.exists():
             results = load_results(results_path)
             duration = f"{results.duration_seconds:.2f}s" if results.duration_seconds is not None else "-"
-            table.add_row(name, "done", f"{results.final_loss:.4f}", str(len(results.loss_history)), duration)
+            grad_norm = f"{results.gradient_norm_history[-1]:.4f}" if results.gradient_norm_history else "-"
+            table.add_row(
+                name, "done", f"{results.final_loss:.4f}", str(len(results.loss_history)), duration, grad_norm
+            )
         else:
-            table.add_row(name, "not run", "-", "-", "-")
+            table.add_row(name, "not run", "-", "-", "-", "-")
 
     console.print()
     console.print(table)

@@ -25,6 +25,7 @@ def test_save_then_load_round_trips(tmp_path):
         loss_history=[1.0, 0.5, 0.1234],
         hyperparams={"epochs": 3, "lr": 0.1, "batch_size": 2, "loss": "mse"},
         duration_seconds=4.56,
+        gradient_norm_history=[3.0, 1.5, 0.8],
     )
     path = tmp_path / "results.json"
 
@@ -36,6 +37,7 @@ def test_save_then_load_round_trips(tmp_path):
     assert loaded.loss_history == results.loss_history
     assert loaded.hyperparams == results.hyperparams
     assert loaded.duration_seconds == results.duration_seconds
+    assert loaded.gradient_norm_history == results.gradient_norm_history
 
 
 def test_load_survives_a_real_experiment_run(tmp_path):
@@ -64,3 +66,5 @@ def test_load_survives_a_real_experiment_run(tmp_path):
     assert loaded.hyperparams == results.hyperparams
     assert loaded.duration_seconds == results.duration_seconds
     assert isinstance(loaded.duration_seconds, float)
+    assert loaded.gradient_norm_history == results.gradient_norm_history
+    assert len(loaded.gradient_norm_history) == 5

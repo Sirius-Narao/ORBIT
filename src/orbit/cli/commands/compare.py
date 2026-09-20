@@ -11,14 +11,12 @@ COMPARISONS_ROOT = pathlib.Path(".orbits/comparisons")
 
 
 def _comparison_filename(names: list, log_scale: bool) -> str:
-    extension = ""
-    if log_scale:
-        extension = extension + "_log_scale"
+    extension = "_log_scale" if log_scale else ""
 
     joined = "_vs_".join(sorted(names))
     if len(joined) > 100:
         return f"comparison_{len(names)}_experiments{extension}.png"
-    return f"{joined}.png"
+    return f"{joined}{extension}.png"
 
 
 def compare_experiments(

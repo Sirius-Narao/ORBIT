@@ -80,6 +80,19 @@ def test_run_captures_duration_seconds(monkeypatch):
     assert results.duration_seconds == experiment.trainer.duration_seconds
 
 
+def test_run_captures_gradient_norm_history():
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    dataloader = make_dataloader(batch_size=2)
+    optimizer = SGD(model.parameters(), lr=0.05)
+    loss_fn = MSE()
+
+    experiment = Experiment(model, loss_fn, optimizer, dataloader, epochs=3, name="gradnorm-run")
+    results = experiment.run()
+
+    assert len(results.gradient_norm_history) == 3
+    assert results.gradient_norm_history == experiment.trainer.gradient_norm_history
+
+
 def test_run_matches_calling_trainer_directly():
     """
     Experiment.run() should be a faithful wrapper around Trainer.fit():

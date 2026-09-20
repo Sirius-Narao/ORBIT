@@ -147,6 +147,82 @@ def test_fit_zero_grads_before_each_batch():
     assert np.isclose(model.weight.grad.item(), expected_grad)
 
 
+def test_fit_records_gradient_norm_history_length():
+    """
+    self.gradient_norm_history should collect one entry per epoch, mirroring
+    self.history.
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    Y = np.array([[0.0], [0.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    loss_fn = MSE()
+    optimizer = SGD(model.parameters(), lr=0.0)
+
+    trainer = Trainer()
+    trainer.fit(model, loss_fn, optimizer, dataloader, epochs=5)
+
+    assert len(trainer.gradient_norm_history) == 5
+
+
+def test_fit_gradient_norm_matches_hand_derived_value():
+    """
+    Single batch covering all 3 samples (batch_size=3), weight=2, bias=0,
+    targets all 0.
+
+    predictions = w*x = [2, 4, 6]
+    dL/dw = (2/N) * sum((pred_i - y_i) * x_i) = (2/3) * (2*1 + 4*2 + 6*3) = 56/3
+    dL/db = (2/N) * sum(pred_i - y_i)         = (2/3) * (2 + 4 + 6)       = 8.0
+    grad_norm = sqrt((56/3)^2 + 8.0^2)
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    Y = np.array([[0.0], [0.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=3, shuffle=False)
+
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    loss_fn = MSE()
+    optimizer = SGD(model.parameters(), lr=0.0)
+
+    trainer = Trainer()
+    trainer.fit(model, loss_fn, optimizer, dataloader, epochs=1)
+
+    expected_norm = np.sqrt((56 / 3) ** 2 + 8.0 ** 2)
+    assert np.isclose(trainer.gradient_norm_history[-1], expected_norm)
+
+
+def test_fit_gradient_norm_reflects_last_batch_only():
+    """
+    Same setup as test_fit_zero_grads_before_each_batch: batch_size=1, 3
+    single-row batches, lr=0. The recorded norm for this epoch must match
+    only the last batch's gradient (row 2: x=3.0, y=0.0, w=2.0, b=0.0), not
+    an accumulation across all three batches.
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    Y = np.array([[0.0], [0.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    loss_fn = MSE()
+    optimizer = SGD(model.parameters(), lr=0.0)
+
+    trainer = Trainer()
+    trainer.fit(model, loss_fn, optimizer, dataloader, epochs=1)
+
+    x_last, y_last = 3.0, 0.0
+    expected_grad_w = 2 * (2.0 * x_last - y_last) * x_last
+    expected_grad_b = 2 * (2.0 * x_last - y_last)
+    expected_norm = np.sqrt(expected_grad_w ** 2 + expected_grad_b ** 2)
+
+    assert np.isclose(trainer.gradient_norm_history[-1], expected_norm)
+
+
 def test_fit_records_duration_seconds(monkeypatch):
     """
     fit() wraps its whole dispatch (start, then end) in time.time(), so

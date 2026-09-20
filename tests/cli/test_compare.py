@@ -1,7 +1,7 @@
 import json
 
 from orbit.core import Results
-from orbit.cli.commands.compare import compare_experiments
+from orbit.cli.commands.compare import compare_experiments, _comparison_filename
 
 
 def write_config(root, name, epochs=5):
@@ -171,3 +171,37 @@ def test_compare_experiments_plotloss_passes_log_scale_flag(tmp_path, monkeypatc
     )
 
     assert calls == [True]
+
+
+def test_comparison_filename_without_log_scale():
+    assert _comparison_filename(["exp_a", "exp_b"], log_scale=False) == "exp_a_vs_exp_b.png"
+
+
+def test_comparison_filename_with_log_scale():
+    assert _comparison_filename(["exp_a", "exp_b"], log_scale=True) == "exp_a_vs_exp_b_log_scale.png"
+
+
+def test_comparison_filename_long_names_with_log_scale():
+    names = [f"experiment_number_{i}" for i in range(10)]  # joined name exceeds 100 chars
+
+    filename = _comparison_filename(names, log_scale=True)
+
+    assert filename == f"comparison_{len(names)}_experiments_log_scale.png"
+
+
+def test_compare_experiments_plotloss_and_logscale_produce_separate_files(tmp_path):
+    exp_a = write_config(tmp_path, "exp_a")
+    write_results(exp_a, final_loss=0.1234)
+    exp_b = write_config(tmp_path, "exp_b")
+    write_results(exp_b, final_loss=0.5678)
+
+    comparisons_root = tmp_path / "comparisons"
+    compare_experiments(
+        ["exp_a", "exp_b"], plot_loss=True, log_scale=False, root=tmp_path, comparisons_root=comparisons_root
+    )
+    compare_experiments(
+        ["exp_a", "exp_b"], plot_loss=True, log_scale=True, root=tmp_path, comparisons_root=comparisons_root
+    )
+
+    saved = list(comparisons_root.glob("*.png"))
+    assert len(saved) == 2

@@ -30,7 +30,9 @@ def write_config(root, name, epochs=5):
     return exp_dir
 
 
-def write_results(exp_dir, final_loss=0.1234, loss_history=None, duration_seconds=None):
+def write_results(
+    exp_dir, final_loss=0.1234, loss_history=None, duration_seconds=None, gradient_norm_history=None
+):
     results_dir = exp_dir / "results"
     results_dir.mkdir(parents=True)
 
@@ -39,6 +41,7 @@ def write_results(exp_dir, final_loss=0.1234, loss_history=None, duration_second
         final_loss=final_loss,
         loss_history=loss_history if loss_history is not None else [0.5, 0.3, final_loss],
         duration_seconds=duration_seconds,
+        gradient_norm_history=gradient_norm_history,
     )
 
     with open(results_dir / "results.json", "w") as f:
@@ -88,6 +91,32 @@ def test_inspect_experiment_omits_duration_when_not_recorded(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "3 epoch" in out
     assert "epoch(s) in" not in out
+
+
+def test_inspect_experiment_shows_gradient_norm_when_recorded(tmp_path, capsys):
+    exp_dir = write_config(tmp_path, "xor_test", epochs=3)
+    write_results(
+        exp_dir,
+        final_loss=0.1234,
+        loss_history=[0.5, 0.3, 0.1234],
+        gradient_norm_history=[2.0, 0.9, 0.3456],
+    )
+
+    inspect_experiment("xor_test", root=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "final gradient norm 0.3456" in out
+
+
+def test_inspect_experiment_omits_gradient_norm_when_not_recorded(tmp_path, capsys):
+    exp_dir = write_config(tmp_path, "xor_test", epochs=3)
+    write_results(exp_dir, final_loss=0.1234, loss_history=[0.5, 0.3, 0.1234])
+
+    inspect_experiment("xor_test", root=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "3 epoch" in out
+    assert "gradient norm" not in out
 
 
 def test_inspect_experiment_missing_name(tmp_path, capsys):
