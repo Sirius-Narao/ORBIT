@@ -11,6 +11,7 @@ from orbit.cli.commands.compare import compare_experiments
 from orbit.cli.commands.reproduce import reproduce_experiment
 from orbit.cli.commands.copy import copy_experiment
 from orbit.cli.commands.rename import rename_experiment
+from orbit.cli.commands.plot import plot_experiment
 from orbit.ui import console, success, warning
 
 # Below this relative improvement between the first and last epoch's loss,
@@ -82,6 +83,10 @@ def build_parser() -> argparse.ArgumentParser:
     rename_parser.add_argument("old_name", help="Current name of the experiment")
     rename_parser.add_argument("new_name", help="New name for the experiment")
 
+    # Plot command
+    plot_parser = subparsers.add_parser("plot", help="Plot an experiment's recorded loss curve")
+    plot_parser.add_argument("name", help="Name of the experiment to plot")
+
     # Import command
     import_parser = subparsers.add_parser("import", help="Import a CSV file as a named dataset")
     import_parser.add_argument("csv_path", help="Path to the CSV file to import")
@@ -115,6 +120,8 @@ def _dispatch(args: argparse.Namespace) -> None:
         copy_experiment(args.source)
     elif args.command == "rename":
         rename_experiment(args.old_name, args.new_name)
+    elif args.command == "plot":
+        plot_experiment(args.name)
     elif args.command == "import":
         import_dataset(args.csv_path, name=args.name, target_columns=args.target)
 

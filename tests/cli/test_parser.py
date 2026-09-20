@@ -108,6 +108,16 @@ def test_import_dispatches_with_defaults_when_optional_flags_omitted(monkeypatch
     assert calls == [("data.csv", None, None)]
 
 
+def test_plot_dispatches_to_plot_experiment_with_name(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parser_module, "plot_experiment", lambda name: calls.append(name))
+    monkeypatch.setattr("sys.argv", ["orbit", "plot", "xor_mlp_01"])
+
+    parser_module.main()
+
+    assert calls == ["xor_mlp_01"]
+
+
 def test_missing_command_opens_the_repl(monkeypatch):
     calls = []
     monkeypatch.setattr("orbit.cli.repl.repl", lambda: calls.append("called"))

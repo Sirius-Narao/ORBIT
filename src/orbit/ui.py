@@ -9,6 +9,22 @@ from rich.theme import Theme
 # must never depend on cli/ (cli/ depends on core/nn/storage, never the
 # reverse).
 
+# When stdout/stderr aren't attached to a real Windows console - piped
+# through Git Bash/mintty, redirected to a file, wrapped by another process -
+# Windows' PEP 528 UTF-8 console handling doesn't kick in, and Python falls
+# back to the system locale's codepage (commonly cp1252 on a US/UK Windows
+# install). That codepage can't encode this module's own output (the REPL
+# banner's box-drawing characters, em dashes in prompts/messages, etc.), so
+# a plain console.print() crashes the whole CLI before anything is shown.
+# Forcing UTF-8 here removes the dependency on a real console being
+# attached; wrapped in try/except since not every stdout stand-in supports
+# .reconfigure() (e.g. pytest's capsys substitute).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 # Overrides rich's own built-in style names so widgets that reach for them
 # internally - Progress's BarColumn/TaskProgressColumn/TimeElapsedColumn/
 # TimeRemainingColumn in trainer.py chief among them - pick up this palette
@@ -24,7 +40,17 @@ THEME = Theme({
     "progress.remaining": "#888888",
 })
 
-console = Console(highlight=False, theme=THEME)
+# legacy_windows=False forces rich to emit plain ANSI/VT escape sequences
+# instead of shelling out to the legacy Win32 console API. That API path
+# encodes to the console's active codepage (often cp1252) with strict error
+# handling, so any non-cp1252 character - the box-drawing banner in
+# cli/repl.py, its em dashes, etc. - raises a bare UnicodeEncodeError and
+# crashes the whole REPL before a single prompt is shown. Forcing the ANSI
+# path instead relies on Python's own stdout text handling, which (PEP 528)
+# talks to a real Windows console in UTF-8/UTF-16 regardless of codepage,
+# and works unmodified under non-native terminals (Windows Terminal, Git
+# Bash/mintty, WSL) that already speak ANSI natively.
+console = Console(highlight=False, theme=THEME, legacy_windows=False)
 
 
 def info(message: str) -> None:
