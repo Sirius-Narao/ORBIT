@@ -12,8 +12,8 @@ from orbit.ui import PROMPT_STYLE, console, success, warning
 def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
     """
     Build a new experiment.json from an existing one's config: dataset,
-    model, loss, and optimizer are copied unchanged (editing those means
-    running orbit new from scratch); learning_rate/batch_size/epochs/seed
+    model, loss, optimizer, and task (if set) are copied unchanged (editing
+    those means running orbit new from scratch); learning_rate/batch_size/epochs/seed
     are all re-prompted with the source's values pre-filled as defaults.
     Keeping the source's seed (just hit enter) is deliberately the default
     - it's what lets a copy isolate the effect of a hyperparameter change
@@ -55,6 +55,8 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
     }
     if batch_size is not None:
         config["batch_size"] = batch_size
+    if "task" in source:
+        config["task"] = source["task"]
 
     _print_config_summary(config)
 

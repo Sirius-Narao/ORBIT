@@ -2,9 +2,12 @@ import numpy as np
 import pytest
 
 import orbit.core.config as config_module
-from orbit.core.config import build_dataset, build_model, build_loss, build_optimizer, load_experiment
+from orbit.core.config import (
+    build_dataset, build_model, build_loss, build_optimizer, build_accuracy_fn, load_experiment,
+)
 from orbit.core import Results
 from orbit.core.experiment import Experiment
+from orbit.core.metrics import accuracy, accuracy_multiclass
 from orbit.nn.layers import Linear
 from orbit.nn.activations import Tanh, Sigmoid
 from orbit.nn.losses import MSE, CrossEntropy
@@ -193,6 +196,20 @@ def test_build_optimizer_unknown_name_raises():
         build_optimizer("Adam", [], lr=0.01)
 
 
+def test_build_accuracy_fn_none_task_returns_none():
+    assert build_accuracy_fn(None) is None
+
+
+def test_build_accuracy_fn_resolves_binary_and_multiclass():
+    assert build_accuracy_fn("binary_classification") is accuracy
+    assert build_accuracy_fn("multiclass_classification") is accuracy_multiclass
+
+
+def test_build_accuracy_fn_unknown_task_raises():
+    with pytest.raises(ValueError):
+        build_accuracy_fn("bogus_task")
+
+
 def test_load_experiment_returns_unrun_experiment():
     config = {
         "name": "xor_mlp_01",
@@ -217,6 +234,37 @@ def test_load_experiment_returns_unrun_experiment():
     assert experiment.dataloader.batch_size == 4
     assert experiment.optimizer.lr == 2.0
     assert experiment.epochs == 5
+
+
+def test_load_experiment_resolves_task_to_accuracy_fn():
+    config = {
+        "dataset": "xor",
+        "model": [{"type": "Linear", "in_features": 2, "neurons": 1}],
+        "loss": "MSE",
+        "optimizer": "SGD",
+        "learning_rate": 0.1,
+        "epochs": 1,
+        "task": "binary_classification",
+    }
+
+    experiment = load_experiment(config)
+
+    assert experiment.accuracy_fn is accuracy
+
+
+def test_load_experiment_without_task_leaves_accuracy_fn_none():
+    config = {
+        "dataset": "xor",
+        "model": [{"type": "Linear", "in_features": 2, "neurons": 1}],
+        "loss": "MSE",
+        "optimizer": "SGD",
+        "learning_rate": 0.1,
+        "epochs": 1,
+    }
+
+    experiment = load_experiment(config)
+
+    assert experiment.accuracy_fn is None
 
 
 def test_load_experiment_batch_size_defaults_to_dataloader_default():

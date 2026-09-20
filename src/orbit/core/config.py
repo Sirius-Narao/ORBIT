@@ -4,6 +4,7 @@ from typing import Optional
 
 from orbit.core import Dataset, TensorDataset, DataLoader
 from orbit.core.experiment import Experiment
+from orbit.core.metrics import accuracy, accuracy_multiclass
 from orbit.nn import Sequential
 from orbit.nn.layers import Linear
 from orbit.nn.activations import ReLU, Tanh, Sigmoid, Softmax
@@ -137,6 +138,24 @@ def build_optimizer(name: str, parameters, lr: float):
         raise ValueError(f"Unknown optimizer: {name!r}")
     return OPTIMIZER_REGISTRY[name](parameters, lr=lr)
 
+# --- task registry -------------------------------------------------------
+# Maps a config's optional "task" field to the accuracy function Trainer
+# should apply each epoch. Dict-based (not if/elif) so a future task type -
+# e.g. a language-modeling task, once ORBIT has the building blocks for one -
+# is a one-line addition here rather than a redesign of Trainer/Experiment.
+
+TASK_REGISTRY = {
+    "binary_classification": accuracy,
+    "multiclass_classification": accuracy_multiclass,
+}
+
+def build_accuracy_fn(task: Optional[str]):
+    if task is None:
+        return None
+    if task not in TASK_REGISTRY:
+        raise ValueError(f"Unknown task: {task!r}")
+    return TASK_REGISTRY[task]
+
 # --- top-level loader -------------------------------------------------------
 
 def load_experiment(config: dict) -> Experiment:
@@ -160,6 +179,7 @@ def load_experiment(config: dict) -> Experiment:
     loss_fn = build_loss(config["loss"])
     optimizer = build_optimizer(config["optimizer"], model.parameters(), config["learning_rate"])
     dataloader = DataLoader(dataset, batch_size=config.get("batch_size", 32))
+    accuracy_fn = build_accuracy_fn(config.get("task"))
 
     return Experiment(
         model,
@@ -169,7 +189,8 @@ def load_experiment(config: dict) -> Experiment:
         config["epochs"],
         name=config.get("name"),
         verbose=True,
-        log_every=100
+        log_every=100,
+        accuracy_fn=accuracy_fn,
     )
 
 if __name__ == "__main__":

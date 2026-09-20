@@ -13,9 +13,10 @@ class Experiment:
         optimizer: Optimizer, 
         dataloader: DataLoader, 
         epochs: int, 
-        name: Optional[str] = None, 
-        verbose: bool = False, 
-        log_every: int = 100
+        name: Optional[str] = None,
+        verbose: bool = False,
+        log_every: int = 100,
+        accuracy_fn=None,
     ):
         self.model = model
         self.loss_fn = loss_fn
@@ -25,9 +26,10 @@ class Experiment:
         self.name = name
         self.log_every = log_every
         self.verbose = verbose
+        self.accuracy_fn = accuracy_fn
 
         self.trainer = Trainer()
-        
+
     def run(self) -> Results:
         final_loss = self.trainer.fit(
             self.model,
@@ -36,7 +38,8 @@ class Experiment:
             self.dataloader,
             self.epochs,
             verbose=self.verbose,
-            log_every=self.log_every
+            log_every=self.log_every,
+            accuracy_fn=self.accuracy_fn,
         )
 
         return Results(
@@ -46,4 +49,5 @@ class Experiment:
             name = self.name,
             duration_seconds = self.trainer.duration_seconds,
             gradient_norm_history = self.trainer.gradient_norm_history,
+            accuracy_history = self.trainer.accuracy_history,
             )

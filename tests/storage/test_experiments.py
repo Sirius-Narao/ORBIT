@@ -1,5 +1,6 @@
 import numpy as np
 from orbit.core import Results, TensorDataset, DataLoader
+from orbit.core.metrics import accuracy
 from orbit.storage import save_results, load_results
 from orbit.nn.layers import Linear
 from orbit.nn.losses import MSE
@@ -26,6 +27,7 @@ def test_save_then_load_round_trips(tmp_path):
         hyperparams={"epochs": 3, "lr": 0.1, "batch_size": 2, "loss": "mse"},
         duration_seconds=4.56,
         gradient_norm_history=[3.0, 1.5, 0.8],
+        accuracy_history=[0.5, 0.75, 0.9],
     )
     path = tmp_path / "results.json"
 
@@ -38,6 +40,7 @@ def test_save_then_load_round_trips(tmp_path):
     assert loaded.hyperparams == results.hyperparams
     assert loaded.duration_seconds == results.duration_seconds
     assert loaded.gradient_norm_history == results.gradient_norm_history
+    assert loaded.accuracy_history == results.accuracy_history
 
 
 def test_load_survives_a_real_experiment_run(tmp_path):
@@ -54,7 +57,7 @@ def test_load_survives_a_real_experiment_run(tmp_path):
 
     model = Linear(1, 1)
     optimizer = SGD(model.parameters(), lr=0.05)
-    experiment = Experiment(model, MSE(), optimizer, dataloader, epochs=5, name="real-run")
+    experiment = Experiment(model, MSE(), optimizer, dataloader, epochs=5, name="real-run", accuracy_fn=accuracy)
 
     results = experiment.run()
     path = tmp_path / "real_run.json"
@@ -68,3 +71,5 @@ def test_load_survives_a_real_experiment_run(tmp_path):
     assert isinstance(loaded.duration_seconds, float)
     assert loaded.gradient_norm_history == results.gradient_norm_history
     assert len(loaded.gradient_norm_history) == 5
+    assert loaded.accuracy_history == results.accuracy_history
+    assert len(loaded.accuracy_history) == 5

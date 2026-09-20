@@ -5,7 +5,8 @@ from orbit.cli.commands.list import list_experiments
 
 
 def write_results(
-    exp_dir, final_loss=0.1234, loss_history=None, duration_seconds=None, gradient_norm_history=None
+    exp_dir, final_loss=0.1234, loss_history=None, duration_seconds=None, gradient_norm_history=None,
+    accuracy_history=None,
 ):
     results_dir = exp_dir / "results"
     results_dir.mkdir(parents=True)
@@ -16,6 +17,7 @@ def write_results(
         loss_history=loss_history if loss_history is not None else [0.5, 0.3, final_loss],
         duration_seconds=duration_seconds,
         gradient_norm_history=gradient_norm_history,
+        accuracy_history=accuracy_history,
     )
 
     with open(results_dir / "results.json", "w") as f:
@@ -76,6 +78,29 @@ def test_list_experiments_shows_dash_for_missing_gradient_norm(tmp_path, capsys)
 
     out = capsys.readouterr().out
     assert "no_gradnorm_exp" in out
+
+
+def test_list_experiments_shows_final_accuracy_when_recorded(tmp_path, capsys):
+    write_results(
+        tmp_path / "accuracy_exp",
+        final_loss=0.5,
+        loss_history=[0.5],
+        accuracy_history=[0.5, 0.75, 0.9],
+    )
+
+    list_experiments(root=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "90.00%" in out
+
+
+def test_list_experiments_shows_dash_for_missing_accuracy(tmp_path, capsys):
+    write_results(tmp_path / "no_accuracy_exp", final_loss=0.5, loss_history=[0.5])
+
+    list_experiments(root=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "no_accuracy_exp" in out
 
 
 def test_list_experiments_empty_dir(tmp_path, capsys):

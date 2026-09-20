@@ -35,6 +35,12 @@ def test_results_defaults_gradient_norm_history_to_none():
     assert results.gradient_norm_history is None
 
 
+def test_results_defaults_accuracy_history_to_none():
+    results = Results(name="run-2", final_loss=0.5, loss_history=[0.5])
+
+    assert results.accuracy_history is None
+
+
 def test_results_repr_is_a_string_and_mentions_name():
     results = Results(name="run-3", final_loss=0.5, loss_history=[1.0, 0.5])
 
@@ -104,6 +110,26 @@ def test_to_dict_gradient_norm_history_stays_none_when_unset():
     assert results.to_dict()["gradient_norm_history"] is None
 
 
+def test_to_dict_includes_accuracy_history_cast_to_floats():
+    results = Results(
+        name="numpy-run",
+        final_loss=0.1234,
+        loss_history=[1.0, 0.5],
+        accuracy_history=[np.float64(0.5), np.float64(0.75)],
+    )
+
+    data = results.to_dict()
+
+    assert all(type(a) is float for a in data["accuracy_history"])
+    assert data["accuracy_history"] == [0.5, 0.75]
+
+
+def test_to_dict_accuracy_history_stays_none_when_unset():
+    results = Results(name="run", final_loss=0.5, loss_history=[0.5])
+
+    assert results.to_dict()["accuracy_history"] is None
+
+
 def test_from_dict_round_trips_to_dict():
     original = Results(
         name="run-4",
@@ -112,6 +138,7 @@ def test_from_dict_round_trips_to_dict():
         hyperparams={"epochs": 3, "lr": 0.1},
         duration_seconds=3.75,
         gradient_norm_history=[2.0, 1.2, 0.4],
+        accuracy_history=[0.5, 0.75, 0.9],
     )
 
     rebuilt = Results.from_dict(original.to_dict())
@@ -122,6 +149,7 @@ def test_from_dict_round_trips_to_dict():
     assert rebuilt.hyperparams == original.hyperparams
     assert rebuilt.duration_seconds == original.duration_seconds
     assert rebuilt.gradient_norm_history == original.gradient_norm_history
+    assert rebuilt.accuracy_history == original.accuracy_history
 
 
 def test_from_dict_defaults_duration_seconds_when_missing_from_old_data():
@@ -149,3 +177,18 @@ def test_from_dict_defaults_gradient_norm_history_when_missing_from_old_data():
     rebuilt = Results.from_dict(old_data)
 
     assert rebuilt.gradient_norm_history is None
+
+
+def test_from_dict_defaults_accuracy_history_when_missing_from_old_data():
+    old_data = {
+        "name": "pre-accuracy-run",
+        "final_loss": 0.5,
+        "loss_history": [1.0, 0.5],
+        "hyperparams": {},
+        "duration_seconds": 1.0,
+        "gradient_norm_history": [1.0, 0.5],
+    }
+
+    rebuilt = Results.from_dict(old_data)
+
+    assert rebuilt.accuracy_history is None

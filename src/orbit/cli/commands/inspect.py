@@ -32,6 +32,8 @@ def inspect_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None
             message += f" in {results.duration_seconds:.2f}s"
         if results.gradient_norm_history:
             message += f", final gradient norm {results.gradient_norm_history[-1]:.4f}"
+        if results.accuracy_history:
+            message += f", final accuracy {results.accuracy_history[-1] * 100:.2f}%"
         info(message)
     else:
         info("Not run yet.")

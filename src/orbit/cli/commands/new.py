@@ -9,6 +9,7 @@ from orbit.core.config import (
     LAYER_REGISTRY,
     LOSS_REGISTRY,
     OPTIMIZER_REGISTRY,
+    TASK_REGISTRY,
     build_dataset,
     build_model,
     list_dataset_names,
@@ -105,6 +106,9 @@ def create_experiment() -> pathlib.Path:
     )
     model = _ask_model_layers(dataset)
     loss = questionary.select("Loss:", choices=list(LOSS_REGISTRY.keys()), style=PROMPT_STYLE).ask()
+    task_choice = questionary.select(
+        "Track accuracy?", choices=["No (not tracked)"] + list(TASK_REGISTRY.keys()), style=PROMPT_STYLE
+    ).ask()
     optimizer = questionary.select("Optimizer:", choices=list(OPTIMIZER_REGISTRY.keys()), style=PROMPT_STYLE).ask()
     learning_rate = _ask_float("Learning rate:")
     batch_size = _ask_optional_int("Batch size (blank = default 32):")
@@ -125,6 +129,8 @@ def create_experiment() -> pathlib.Path:
     }
     if batch_size is not None:
         config["batch_size"] = batch_size
+    if task_choice != "No (not tracked)":
+        config["task"] = task_choice
 
     _print_config_summary(config)
 
@@ -159,6 +165,7 @@ def _print_config_summary(config: dict) -> None:
     table.add_row("Dataset", config["dataset"])
     table.add_row("Model", _format_model_summary(config["model"]))
     table.add_row("Loss", config["loss"])
+    table.add_row("Task", config.get("task", "none (not tracked)"))
     table.add_row("Optimizer", config["optimizer"])
     table.add_row("Learning rate", str(config["learning_rate"]))
     table.add_row("Batch size", str(config.get("batch_size", "32 (default)")))

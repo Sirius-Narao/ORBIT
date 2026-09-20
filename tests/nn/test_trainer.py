@@ -1,5 +1,6 @@
 import numpy as np
 from orbit.core import TensorDataset, DataLoader
+from orbit.core.metrics import accuracy
 from orbit.nn.layers import Linear
 from orbit.nn.losses import MSE
 from orbit.nn.optimizers import SGD
@@ -221,6 +222,74 @@ def test_fit_gradient_norm_reflects_last_batch_only():
     expected_norm = np.sqrt(expected_grad_w ** 2 + expected_grad_b ** 2)
 
     assert np.isclose(trainer.gradient_norm_history[-1], expected_norm)
+
+
+def test_fit_accuracy_history_stays_none_without_accuracy_fn():
+    X = np.array([[1.0], [2.0], [3.0]])
+    Y = np.array([[0.0], [0.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    loss_fn = MSE()
+    optimizer = SGD(model.parameters(), lr=0.0)
+
+    trainer = Trainer()
+    trainer.fit(model, loss_fn, optimizer, dataloader, epochs=5)
+
+    assert trainer.accuracy_history is None
+
+
+def test_fit_accuracy_history_is_batch_size_weighted():
+    """
+    Mirrors test_fit_weights_epoch_average_by_batch_size's batch-weighting
+    logic, but for accuracy: batch_size=2 -> batches of size [2, 1]. A stub
+    accuracy_fn returns 1.0 for the first batch and 0.0 for the second, so
+    the correct sample-weighted epoch average is (1.0*2 + 0.0*1) / 3 = 2/3,
+    not a naive (1.0 + 0.0) / 2 = 0.5.
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    Y = np.array([[0.0], [0.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    loss_fn = MSE()
+    optimizer = SGD(model.parameters(), lr=0.0)
+
+    accuracies = iter([1.0, 0.0])
+    stub_accuracy_fn = lambda y_pred, y_true: next(accuracies)
+
+    trainer = Trainer()
+    trainer.fit(model, loss_fn, optimizer, dataloader, epochs=1, accuracy_fn=stub_accuracy_fn)
+
+    assert np.isclose(trainer.accuracy_history[-1], 2 / 3)
+
+
+def test_fit_accuracy_history_matches_real_accuracy_function():
+    """
+    Integration check using the real core.metrics.accuracy function (not a
+    stub), proving the Trainer -> accuracy_fn dispatch path works end to
+    end. weight=1, bias=0 (identity): predictions = X = [0.2, 0.6, 0.9].
+    Thresholded at 0.5: [0, 1, 1]. Targets: [0, 1, 0]. Matches at indices 0
+    and 1 only -> accuracy = 2/3.
+    """
+    X = np.array([[0.2], [0.6], [0.9]])
+    Y = np.array([[0.0], [1.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=3, shuffle=False)
+
+    model = make_fixed_linear(weight=1.0, bias=0.0)
+    loss_fn = MSE()
+    optimizer = SGD(model.parameters(), lr=0.0)
+
+    trainer = Trainer()
+    trainer.fit(model, loss_fn, optimizer, dataloader, epochs=1, accuracy_fn=accuracy)
+
+    assert np.isclose(trainer.accuracy_history[-1], 2 / 3)
 
 
 def test_fit_records_duration_seconds(monkeypatch):

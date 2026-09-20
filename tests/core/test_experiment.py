@@ -1,5 +1,6 @@
 import numpy as np
 from orbit.core import TensorDataset, DataLoader
+from orbit.core.metrics import accuracy
 from orbit.nn.layers import Linear
 from orbit.nn.losses import MSE
 from orbit.nn.optimizers import SGD
@@ -91,6 +92,33 @@ def test_run_captures_gradient_norm_history():
 
     assert len(results.gradient_norm_history) == 3
     assert results.gradient_norm_history == experiment.trainer.gradient_norm_history
+
+
+def test_run_captures_accuracy_history_when_accuracy_fn_given():
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    dataloader = make_dataloader(batch_size=2)
+    optimizer = SGD(model.parameters(), lr=0.05)
+    loss_fn = MSE()
+
+    experiment = Experiment(
+        model, loss_fn, optimizer, dataloader, epochs=3, name="accuracy-run", accuracy_fn=accuracy
+    )
+    results = experiment.run()
+
+    assert len(results.accuracy_history) == 3
+    assert results.accuracy_history == experiment.trainer.accuracy_history
+
+
+def test_run_leaves_accuracy_history_none_by_default():
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    dataloader = make_dataloader(batch_size=2)
+    optimizer = SGD(model.parameters(), lr=0.05)
+    loss_fn = MSE()
+
+    experiment = Experiment(model, loss_fn, optimizer, dataloader, epochs=3, name="no-accuracy-run")
+    results = experiment.run()
+
+    assert results.accuracy_history is None
 
 
 def test_run_matches_calling_trainer_directly():

@@ -9,6 +9,7 @@ class Results:
         hyperparams: Optional[dict] = None,
         duration_seconds: Optional[float] = None,
         gradient_norm_history: Optional[List[float]] = None,
+        accuracy_history: Optional[List[float]] = None,
     ):
         self.name = name
         self.final_loss = final_loss
@@ -18,6 +19,7 @@ class Results:
             self.hyperparams = {}
         self.duration_seconds = duration_seconds
         self.gradient_norm_history = gradient_norm_history
+        self.accuracy_history = accuracy_history
 
     def __repr__(self):
         return f"Results(name={self.name!r}, final_loss={self.final_loss:.4f}, epochs={len(self.loss_history)})"
@@ -38,6 +40,11 @@ class Results:
             "gradient_norm_history": (
                 [float(g) for g in self.gradient_norm_history]
                 if self.gradient_norm_history is not None
+                else None
+            ),
+            "accuracy_history": (
+                [float(a) for a in self.accuracy_history]
+                if self.accuracy_history is not None
                 else None
             ),
         }

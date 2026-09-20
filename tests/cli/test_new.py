@@ -45,10 +45,11 @@ def test_create_experiment_writes_expected_config(tmp_path, monkeypatch):
             "Linear",   # layer 1 type
             "Tanh",     # layer 2 type
             "Linear",   # layer 3 type
-            "Sigmoid",  # layer 4 type
-            "Done",     # finish model
-            "MSE",      # loss
-            "SGD",      # optimizer
+            "Sigmoid",           # layer 4 type
+            "Done",              # finish model
+            "MSE",               # loss
+            "No (not tracked)",  # track accuracy?
+            "SGD",               # optimizer
         ],
     )
 
@@ -84,7 +85,7 @@ def test_create_experiment_omits_batch_size_when_left_blank(tmp_path, monkeypatc
     fake_prompts(
         monkeypatch,
         texts=["xor_default_batch", "1", "0.1", "", "10", ""],
-        selects=["xor", "Linear", "Done", "MSE", "SGD"],
+        selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
     )
 
     config_path = create_experiment()
@@ -109,7 +110,7 @@ def test_create_experiment_fills_in_features_from_dataset_without_prompting(
     fake_prompts(
         monkeypatch,
         texts=["xor_single_layer", "1", "0.05", "", "8", ""],
-        selects=["xor", "Linear", "Done", "MSE", "SGD"],
+        selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
     )
 
     config_path = create_experiment()
@@ -137,7 +138,7 @@ def test_create_experiment_rejects_output_shape_mismatch_and_lets_user_fix_it(
     fake_prompts(
         monkeypatch,
         texts=["bad_output_then_fixed", "5", "1", "0.1", "", "10", ""],
-        selects=["xor", "Linear", "Done", "Linear", "Done", "MSE", "SGD"],
+        selects=["xor", "Linear", "Done", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
     )
 
     config_path = create_experiment()
@@ -177,7 +178,7 @@ def test_create_experiment_dataset_picker_includes_imported_datasets(
     fake_prompts(
         monkeypatch,
         texts=["housing_model", "1", "0.1", "", "50", ""],
-        selects=["housing", "Linear", "Done", "MSE", "SGD"],
+        selects=["housing", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
     )
 
     config_path = create_experiment()
@@ -187,3 +188,44 @@ def test_create_experiment_dataset_picker_includes_imported_datasets(
 
     assert config["dataset"] == "housing"
     assert config["model"] == [{"type": "Linear", "in_features": 3, "neurons": 1}]
+
+
+def test_create_experiment_sets_task_when_accuracy_tracking_chosen(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+
+    fake_prompts(
+        monkeypatch,
+        texts=["xor_binary", "8", "1", "2.0", "4", "3000", "42"],
+        selects=[
+            "xor", "Linear", "Tanh", "Linear", "Sigmoid", "Done",
+            "MSE", "binary_classification", "SGD",
+        ],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert config["task"] == "binary_classification"
+
+
+def test_create_experiment_omits_task_when_not_tracked(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+
+    fake_prompts(
+        monkeypatch,
+        texts=["xor_no_tracking", "1", "0.1", "", "10", ""],
+        selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert "task" not in config

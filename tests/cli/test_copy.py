@@ -109,6 +109,25 @@ def test_copy_experiment_blank_batch_size_omits_it(tmp_path, monkeypatch):
     assert "batch_size" not in config
 
 
+def test_copy_experiment_preserves_task_when_present(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    config["task"] = "binary_classification"
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    fake_prompts(monkeypatch, texts=["copied_exp", "3.0", "8", "500", "999"])
+
+    copy_config_path = copy_experiment("source_exp", root=tmp_path)
+
+    with open(copy_config_path) as f:
+        copy_config = json.load(f)
+
+    assert copy_config["task"] == "binary_classification"
+
+
 def test_copy_experiment_missing_source(tmp_path, capsys):
     result = copy_experiment("does_not_exist", root=tmp_path)
 

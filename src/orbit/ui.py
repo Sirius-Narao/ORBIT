@@ -1,3 +1,4 @@
+import shutil
 import sys
 
 import questionary
@@ -50,7 +51,18 @@ THEME = Theme({
 # talks to a real Windows console in UTF-8/UTF-16 regardless of codepage,
 # and works unmodified under non-native terminals (Windows Terminal, Git
 # Bash/mintty, WSL) that already speak ANSI natively.
-console = Console(highlight=False, theme=THEME, legacy_windows=False)
+# shutil.get_terminal_size() reports the real terminal's width when one is
+# attached (so a genuinely narrow terminal is still respected), and falls
+# back to `fallback=` only when it isn't - e.g. output piped/redirected, or
+# pytest's capsys. rich.Console's own built-in fallback for that same case
+# is a conservative 80 columns, which orbit list's growing set of metric
+# columns (loss, epochs, duration, gradient norm, accuracy, ...) can now
+# exceed, forcing rich to truncate the Name column down to a few characters.
+# Passing width= explicitly here uses this wider fallback instead, at the
+# cost of no longer re-detecting a live terminal resize mid-session (an
+# acceptable trade for a CLI tool, and consistent with most CLIs' behavior).
+_terminal_width = shutil.get_terminal_size(fallback=(120, 24)).columns
+console = Console(highlight=False, theme=THEME, legacy_windows=False, width=_terminal_width)
 
 
 def info(message: str) -> None:
