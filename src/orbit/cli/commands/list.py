@@ -23,15 +23,17 @@ def list_experiments(root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
     table.add_column("Status")
     table.add_column("Final Loss")
     table.add_column("Epochs")
+    table.add_column("Duration")
     # table.add_column("Seed")
 
     for name in names:
         results_path = root / name / "results" / "results.json"
         if results_path.exists():
             results = load_results(results_path)
-            table.add_row(name, "done", f"{results.final_loss:.4f}", str(len(results.loss_history)))
+            duration = f"{results.duration_seconds:.2f}s" if results.duration_seconds is not None else "-"
+            table.add_row(name, "done", f"{results.final_loss:.4f}", str(len(results.loss_history)), duration)
         else:
-            table.add_row(name, "not run", "-", "-")
+            table.add_row(name, "not run", "-", "-", "-")
 
     console.print()
     console.print(table)

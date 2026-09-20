@@ -21,8 +21,12 @@ def plot_experiment(
         warning(f"{name} has not been run yet - nothing to plot (run it first).")
         return None
 
+    extension = ""
+    if log_scale:
+        extension = extension + "_log_scale"
+    
     results = load_results(results_path)
-    output_path = plot_loss(results, exp_dir / "results" / "loss.png", log_scale=log_scale)
+    output_path = plot_loss(results, exp_dir / "results" / f"loss{extension}.png", log_scale=log_scale)
 
     success(f"Saved loss plot to {output_path}")
     return output_path

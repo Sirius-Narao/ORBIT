@@ -43,5 +43,6 @@ class Experiment:
             final_loss = final_loss,
             loss_history = self.trainer.history,
             hyperparams={"epochs": self.epochs, "lr": self.optimizer.lr, "batch_size": self.dataloader.batch_size, "loss": self.loss_fn.name},
-            name = self.name
+            name = self.name,
+            duration_seconds = self.trainer.duration_seconds,
             )

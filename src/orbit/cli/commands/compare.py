@@ -10,10 +10,14 @@ from orbit.visualization import plot_loss_comparison
 COMPARISONS_ROOT = pathlib.Path(".orbits/comparisons")
 
 
-def _comparison_filename(names: list) -> str:
+def _comparison_filename(names: list, log_scale: bool) -> str:
+    extension = ""
+    if log_scale:
+        extension = extension + "_log_scale"
+
     joined = "_vs_".join(sorted(names))
     if len(joined) > 100:
-        return f"comparison_{len(names)}_experiments.png"
+        return f"comparison_{len(names)}_experiments{extension}.png"
     return f"{joined}.png"
 
 
@@ -100,7 +104,7 @@ def compare_experiments(
             console.print()
             return
 
-        output_path = comparisons_root / _comparison_filename([r.name for r in plot_candidates])
+        output_path = comparisons_root / _comparison_filename([r.name for r in plot_candidates], log_scale=log_scale)
         output_path = plot_loss_comparison(plot_candidates, output_path, log_scale=log_scale)
         success(f"Saved comparison plot to {output_path}")
         console.print()

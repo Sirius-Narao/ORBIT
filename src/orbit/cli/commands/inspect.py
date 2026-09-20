@@ -24,10 +24,13 @@ def inspect_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None
     results_path = exp_dir / "results" / "results.json"
     if results_path.exists():
         results = load_results(results_path)
-        info(
+        message = (
             f"Results: final loss {results.final_loss:.4f} over "
             f"{len(results.loss_history)} epoch(s)"
         )
+        if results.duration_seconds is not None:
+            message += f" in {results.duration_seconds:.2f}s"
+        info(message)
     else:
         info("Not run yet.")
     console.print()

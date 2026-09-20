@@ -4,7 +4,7 @@ from orbit.core import Results
 from orbit.cli.commands.list import list_experiments
 
 
-def write_results(exp_dir, final_loss=0.1234, loss_history=None):
+def write_results(exp_dir, final_loss=0.1234, loss_history=None, duration_seconds=None):
     results_dir = exp_dir / "results"
     results_dir.mkdir(parents=True)
 
@@ -12,6 +12,7 @@ def write_results(exp_dir, final_loss=0.1234, loss_history=None):
         name=exp_dir.name,
         final_loss=final_loss,
         loss_history=loss_history if loss_history is not None else [0.5, 0.3, final_loss],
+        duration_seconds=duration_seconds,
     )
 
     with open(results_dir / "results.json", "w") as f:
@@ -31,6 +32,24 @@ def test_list_experiments_shows_done_and_not_run(tmp_path, capsys):
     assert "3" in out  # epoch count
     assert "pending_exp" in out
     assert "not run" in out
+
+
+def test_list_experiments_shows_duration_when_recorded(tmp_path, capsys):
+    write_results(tmp_path / "timed_exp", final_loss=0.5, loss_history=[0.5], duration_seconds=7.89)
+
+    list_experiments(root=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "7.89s" in out
+
+
+def test_list_experiments_shows_dash_for_missing_duration(tmp_path, capsys):
+    write_results(tmp_path / "untimed_exp", final_loss=0.5, loss_history=[0.5])
+
+    list_experiments(root=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "untimed_exp" in out
 
 
 def test_list_experiments_empty_dir(tmp_path, capsys):

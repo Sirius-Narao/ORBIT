@@ -23,6 +23,12 @@ def test_results_defaults_hyperparams_to_empty_dict():
     assert results.hyperparams == {}
 
 
+def test_results_defaults_duration_seconds_to_none():
+    results = Results(name="run-2", final_loss=0.5, loss_history=[0.5])
+
+    assert results.duration_seconds is None
+
+
 def test_results_repr_is_a_string_and_mentions_name():
     results = Results(name="run-3", final_loss=0.5, loss_history=[1.0, 0.5])
 
@@ -52,12 +58,33 @@ def test_to_dict_casts_numpy_scalars_to_plain_floats():
     json.dumps(data)  # must not raise
 
 
+def test_to_dict_includes_duration_seconds_cast_to_float():
+    results = Results(
+        name="numpy-run",
+        final_loss=0.1234,
+        loss_history=[1.0, 0.5],
+        duration_seconds=np.float64(12.5),
+    )
+
+    data = results.to_dict()
+
+    assert type(data["duration_seconds"]) is float
+    assert data["duration_seconds"] == 12.5
+
+
+def test_to_dict_duration_seconds_stays_none_when_unset():
+    results = Results(name="run", final_loss=0.5, loss_history=[0.5])
+
+    assert results.to_dict()["duration_seconds"] is None
+
+
 def test_from_dict_round_trips_to_dict():
     original = Results(
         name="run-4",
         final_loss=0.42,
         loss_history=[1.0, 0.6, 0.42],
         hyperparams={"epochs": 3, "lr": 0.1},
+        duration_seconds=3.75,
     )
 
     rebuilt = Results.from_dict(original.to_dict())
@@ -66,3 +93,17 @@ def test_from_dict_round_trips_to_dict():
     assert rebuilt.final_loss == original.final_loss
     assert rebuilt.loss_history == original.loss_history
     assert rebuilt.hyperparams == original.hyperparams
+    assert rebuilt.duration_seconds == original.duration_seconds
+
+
+def test_from_dict_defaults_duration_seconds_when_missing_from_old_data():
+    old_data = {
+        "name": "pre-duration-run",
+        "final_loss": 0.5,
+        "loss_history": [1.0, 0.5],
+        "hyperparams": {},
+    }
+
+    rebuilt = Results.from_dict(old_data)
+
+    assert rebuilt.duration_seconds is None

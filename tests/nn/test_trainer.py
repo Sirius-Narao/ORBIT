@@ -145,3 +145,28 @@ def test_fit_zero_grads_before_each_batch():
     expected_grad = 2 * (2.0 * x_last - y_last) * x_last
 
     assert np.isclose(model.weight.grad.item(), expected_grad)
+
+
+def test_fit_records_duration_seconds(monkeypatch):
+    """
+    fit() wraps its whole dispatch (start, then end) in time.time(), so
+    exactly two calls happen regardless of epoch count - stub them with
+    fixed values to make the elapsed duration deterministic.
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    Y = np.array([[0.0], [0.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    loss_fn = MSE()
+    optimizer = SGD(model.parameters(), lr=0.0)
+
+    times = iter([100.0, 100.5])
+    monkeypatch.setattr("orbit.nn.training.trainer.time.time", lambda: next(times))
+
+    trainer = Trainer()
+    trainer.fit(model, loss_fn, optimizer, dataloader, epochs=5)
+
+    assert trainer.duration_seconds == 0.5

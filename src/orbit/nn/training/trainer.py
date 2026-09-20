@@ -1,3 +1,5 @@
+import time
+
 from rich.progress import (
     BarColumn,
     Progress,
@@ -16,6 +18,7 @@ from orbit.ui import console, is_tty
 class Trainer:
     def __init__(self):
         self.history = []
+        self.duration_seconds = None
 
     def _run_epoch(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader) -> float:
         total_loss = 0.0
@@ -35,8 +38,12 @@ class Trainer:
     def fit(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int,
             verbose: bool = False, log_every: int = 100):
 
+        start = time.time()
+
         if verbose and is_tty():
-            return self._fit_with_progress_bar(model, loss_fn, optimizer, dataloader, epochs)
+            avg_loss = self._fit_with_progress_bar(model, loss_fn, optimizer, dataloader, epochs)
+            self.duration_seconds = time.time() - start
+            return avg_loss
 
         avg_loss = None
         for e in range(1, epochs+1):
@@ -47,6 +54,7 @@ class Trainer:
 
             self.history.append(avg_loss)
 
+        self.duration_seconds = time.time() - start
         return avg_loss
 
     def _fit_with_progress_bar(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int) -> float:

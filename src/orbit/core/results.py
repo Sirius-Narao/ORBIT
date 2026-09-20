@@ -1,13 +1,21 @@
 from typing import List, Optional
 
 class Results:
-    def __init__(self, name: str, final_loss: float, loss_history: List[float], hyperparams: Optional[dict] = None):
+    def __init__(
+        self,
+        name: str,
+        final_loss: float,
+        loss_history: List[float],
+        hyperparams: Optional[dict] = None,
+        duration_seconds: Optional[float] = None,
+    ):
         self.name = name
         self.final_loss = final_loss
         self.loss_history = loss_history
         self.hyperparams = hyperparams
         if self.hyperparams is None:
             self.hyperparams = {}
+        self.duration_seconds = duration_seconds
 
     def __repr__(self):
         return f"Results(name={self.name!r}, final_loss={self.final_loss:.4f}, epochs={len(self.loss_history)})"
@@ -24,6 +32,7 @@ class Results:
             "final_loss": float(self.final_loss),
             "loss_history": [float(loss) for loss in self.loss_history],
             "hyperparams": self.hyperparams,
+            "duration_seconds": float(self.duration_seconds) if self.duration_seconds is not None else None,
         }
 
     @classmethod

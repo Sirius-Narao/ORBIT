@@ -64,6 +64,22 @@ def test_run_captures_hyperparams():
     assert results.name == "hp-check"
 
 
+def test_run_captures_duration_seconds(monkeypatch):
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    dataloader = make_dataloader(batch_size=2)
+    optimizer = SGD(model.parameters(), lr=0.05)
+    loss_fn = MSE()
+
+    times = iter([200.0, 200.25])
+    monkeypatch.setattr("orbit.nn.training.trainer.time.time", lambda: next(times))
+
+    experiment = Experiment(model, loss_fn, optimizer, dataloader, epochs=3, name="timed-run")
+    results = experiment.run()
+
+    assert results.duration_seconds == 0.25
+    assert results.duration_seconds == experiment.trainer.duration_seconds
+
+
 def test_run_matches_calling_trainer_directly():
     """
     Experiment.run() should be a faithful wrapper around Trainer.fit():
