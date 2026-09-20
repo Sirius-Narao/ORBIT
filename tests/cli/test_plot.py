@@ -75,3 +75,18 @@ def test_plot_experiment_saves_png_after_run(tmp_path, capsys):
     assert result == exp_dir / "results" / "loss.png"
     assert result.exists()
     assert result.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_plot_experiment_passes_log_scale_flag(tmp_path, monkeypatch):
+    exp_dir = write_config(tmp_path, "xor_test", epochs=3)
+    write_results(exp_dir, final_loss=0.1234, loss_history=[0.5, 0.3, 0.1234])
+
+    calls = []
+    monkeypatch.setattr(
+        "orbit.cli.commands.plot.plot_loss",
+        lambda results, output_path, log_scale=False: calls.append(log_scale) or output_path,
+    )
+
+    plot_experiment("xor_test", root=tmp_path, log_scale=True)
+
+    assert calls == [True]

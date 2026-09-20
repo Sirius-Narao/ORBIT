@@ -76,6 +76,11 @@ def build_parser() -> argparse.ArgumentParser:
     compare_parser = subparsers.add_parser("compare", help="Compare experiments by config and results")
     compare_parser.add_argument("names", nargs="*", help="Names of experiments to compare (omit with --all)")
     compare_parser.add_argument("--all", action="store_true", help="Compare every experiment")
+    compare_parser.add_argument("--plotloss", action="store_true", help="Also save a comparison plot of loss curves")
+    compare_parser.add_argument(
+        "--logscale", action="store_true",
+        help="Use a log-scale y-axis for --plotloss (helps see small changes late in training)",
+    )
 
     # Reproduce command:
     reproduce_parser = subparsers.add_parser("reproduce", help="Re-run a saved experiment and check the result matches")
@@ -93,6 +98,10 @@ def build_parser() -> argparse.ArgumentParser:
     # Plot command
     plot_parser = subparsers.add_parser("plot", help="Plot an experiment's recorded loss curve")
     plot_parser.add_argument("name", help="Name of the experiment to plot")
+    plot_parser.add_argument(
+        "--logscale", action="store_true",
+        help="Use a log-scale y-axis (helps see small changes late in training)",
+    )
 
     # Import command
     import_parser = subparsers.add_parser("import", help="Import a CSV file as a named dataset")
@@ -126,7 +135,7 @@ def _dispatch(args: argparse.Namespace) -> None:
     elif args.command == "inspect":
         inspect_experiment(args.name)
     elif args.command == "compare":
-        compare_experiments(args.names, is_all=args.all)
+        compare_experiments(args.names, is_all=args.all, plot_loss=args.plotloss, log_scale=args.logscale)
     elif args.command == "reproduce":
         reproduce_experiment(args.name)
     elif args.command == "copy":
@@ -134,7 +143,7 @@ def _dispatch(args: argparse.Namespace) -> None:
     elif args.command == "rename":
         rename_experiment(args.old_name, args.new_name)
     elif args.command == "plot":
-        plot_experiment(args.name)
+        plot_experiment(args.name, log_scale=args.logscale)
     elif args.command == "import":
         import_dataset(args.csv_path, name=args.name, target_columns=args.target)
 

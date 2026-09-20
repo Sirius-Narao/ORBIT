@@ -4,10 +4,27 @@ import pathlib
 from rich.table import Table
 
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
-from orbit.ui import console, warning
+from orbit.ui import console, success, warning
+from orbit.visualization import plot_loss_comparison
+
+COMPARISONS_ROOT = pathlib.Path(".orbits/comparisons")
 
 
-def compare_experiments(names: list = None, is_all: bool = False, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
+def _comparison_filename(names: list) -> str:
+    joined = "_vs_".join(sorted(names))
+    if len(joined) > 100:
+        return f"comparison_{len(names)}_experiments.png"
+    return f"{joined}.png"
+
+
+def compare_experiments(
+    names: list = None,
+    is_all: bool = False,
+    plot_loss: bool = False,
+    log_scale: bool = False,
+    root: pathlib.Path = EXPERIMENTS_ROOT,
+    comparisons_root: pathlib.Path = COMPARISONS_ROOT,
+) -> None:
     if is_all:
         if not root.exists():
             console.print()
@@ -34,6 +51,7 @@ def compare_experiments(names: list = None, is_all: bool = False, root: pathlib.
     table.add_column("Final Loss")
 
     found_any = False
+    plot_candidates = []
     for name in names:
         exp_dir = experiment_dir(name, root=root)
         config_path = exp_dir / "experiment.json"
@@ -49,6 +67,7 @@ def compare_experiments(names: list = None, is_all: bool = False, root: pathlib.
         if results_path.exists():
             results = load_results(results_path)
             final_loss = f"{results.final_loss:.4f}"
+            plot_candidates.append(results)
         else:
             final_loss = "not run"
 
@@ -74,3 +93,14 @@ def compare_experiments(names: list = None, is_all: bool = False, root: pathlib.
     console.print()
     console.print(table)
     console.print()
+
+    if plot_loss:
+        if not plot_candidates:
+            warning("No experiments with results to plot.")
+            console.print()
+            return
+
+        output_path = comparisons_root / _comparison_filename([r.name for r in plot_candidates])
+        output_path = plot_loss_comparison(plot_candidates, output_path, log_scale=log_scale)
+        success(f"Saved comparison plot to {output_path}")
+        console.print()

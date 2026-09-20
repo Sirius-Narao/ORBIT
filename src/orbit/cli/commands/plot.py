@@ -6,7 +6,9 @@ from orbit.ui import warning, success
 from orbit.visualization import plot_loss
 
 
-def plot_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> Optional[pathlib.Path]:
+def plot_experiment(
+    name: str, root: pathlib.Path = EXPERIMENTS_ROOT, log_scale: bool = False
+) -> Optional[pathlib.Path]:
     exp_dir = experiment_dir(name, root=root)
     config_path = exp_dir / "experiment.json"
 
@@ -20,7 +22,7 @@ def plot_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> Optiona
         return None
 
     results = load_results(results_path)
-    output_path = plot_loss(results, exp_dir / "results" / "loss.png")
+    output_path = plot_loss(results, exp_dir / "results" / "loss.png", log_scale=log_scale)
 
     success(f"Saved loss plot to {output_path}")
     return output_path

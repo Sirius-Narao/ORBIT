@@ -98,3 +98,76 @@ def test_compare_experiments_no_names_and_not_all(tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert "No experiments found" in out
+
+
+def test_compare_experiments_plotloss_saves_comparison_png(tmp_path, capsys):
+    exp_a = write_config(tmp_path, "exp_a")
+    write_results(exp_a, final_loss=0.1234)
+    exp_b = write_config(tmp_path, "exp_b")
+    write_results(exp_b, final_loss=0.5678)
+
+    comparisons_root = tmp_path / "comparisons"
+    compare_experiments(
+        ["exp_a", "exp_b"], plot_loss=True, root=tmp_path, comparisons_root=comparisons_root
+    )
+
+    saved = list(comparisons_root.glob("*.png"))
+    assert len(saved) == 1
+    assert saved[0].read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+    out = capsys.readouterr().out
+    assert "Saved comparison plot to" in out
+
+
+def test_compare_experiments_plotloss_warns_when_nothing_has_run(tmp_path, capsys):
+    write_config(tmp_path, "exp_a")
+    write_config(tmp_path, "exp_b")
+
+    comparisons_root = tmp_path / "comparisons"
+    compare_experiments(
+        ["exp_a", "exp_b"], plot_loss=True, root=tmp_path, comparisons_root=comparisons_root
+    )
+
+    out = capsys.readouterr().out
+    assert "No experiments with results to plot." in out
+    assert not comparisons_root.exists()
+
+
+def test_compare_experiments_plotloss_skips_unrun_experiments(tmp_path, capsys):
+    exp_a = write_config(tmp_path, "exp_a")
+    write_results(exp_a, final_loss=0.1234)
+    write_config(tmp_path, "exp_b")  # never run
+
+    comparisons_root = tmp_path / "comparisons"
+    compare_experiments(
+        ["exp_a", "exp_b"], plot_loss=True, root=tmp_path, comparisons_root=comparisons_root
+    )
+
+    saved = list(comparisons_root.glob("*.png"))
+    assert len(saved) == 1
+
+    out = capsys.readouterr().out
+    assert "Saved comparison plot to" in out
+
+
+def test_compare_experiments_plotloss_passes_log_scale_flag(tmp_path, monkeypatch):
+    exp_a = write_config(tmp_path, "exp_a")
+    write_results(exp_a, final_loss=0.1234)
+    exp_b = write_config(tmp_path, "exp_b")
+    write_results(exp_b, final_loss=0.5678)
+
+    calls = []
+    monkeypatch.setattr(
+        "orbit.cli.commands.compare.plot_loss_comparison",
+        lambda results_list, output_path, log_scale=False: calls.append(log_scale) or output_path,
+    )
+
+    compare_experiments(
+        ["exp_a", "exp_b"],
+        plot_loss=True,
+        log_scale=True,
+        root=tmp_path,
+        comparisons_root=tmp_path / "comparisons",
+    )
+
+    assert calls == [True]

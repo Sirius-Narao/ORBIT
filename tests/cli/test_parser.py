@@ -122,12 +122,62 @@ def test_import_dispatches_with_defaults_when_optional_flags_omitted(monkeypatch
 
 def test_plot_dispatches_to_plot_experiment_with_name(monkeypatch):
     calls = []
-    monkeypatch.setattr(parser_module, "plot_experiment", lambda name: calls.append(name))
+    monkeypatch.setattr(
+        parser_module,
+        "plot_experiment",
+        lambda name, log_scale=False: calls.append((name, log_scale)),
+    )
     monkeypatch.setattr("sys.argv", ["orbit", "plot", "xor_mlp_01"])
 
     parser_module.main()
 
-    assert calls == ["xor_mlp_01"]
+    assert calls == [("xor_mlp_01", False)]
+
+
+def test_plot_dispatches_with_logscale_flag(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        parser_module,
+        "plot_experiment",
+        lambda name, log_scale=False: calls.append((name, log_scale)),
+    )
+    monkeypatch.setattr("sys.argv", ["orbit", "plot", "xor_mlp_01", "--logscale"])
+
+    parser_module.main()
+
+    assert calls == [("xor_mlp_01", True)]
+
+
+def test_compare_dispatches_with_plotloss_flag(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        parser_module,
+        "compare_experiments",
+        lambda names, is_all=False, plot_loss=False, log_scale=False: calls.append(
+            (names, is_all, plot_loss, log_scale)
+        ),
+    )
+    monkeypatch.setattr("sys.argv", ["orbit", "compare", "exp_a", "exp_b", "--plotloss"])
+
+    parser_module.main()
+
+    assert calls == [(["exp_a", "exp_b"], False, True, False)]
+
+
+def test_compare_dispatches_with_plotloss_and_logscale_flags(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        parser_module,
+        "compare_experiments",
+        lambda names, is_all=False, plot_loss=False, log_scale=False: calls.append(
+            (names, is_all, plot_loss, log_scale)
+        ),
+    )
+    monkeypatch.setattr("sys.argv", ["orbit", "compare", "exp_a", "exp_b", "--plotloss", "--logscale"])
+
+    parser_module.main()
+
+    assert calls == [(["exp_a", "exp_b"], False, True, True)]
 
 
 def test_missing_command_opens_the_repl(monkeypatch):
