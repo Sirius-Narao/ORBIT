@@ -53,8 +53,11 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser = subparsers.add_parser("list", help="List all experiments and their results")
 
     # Run command
-    run_parser = subparsers.add_parser("run", help="Run a saved experiment")
-    run_parser.add_argument("name", help="Name of the experiment to run")
+    run_parser = subparsers.add_parser("run", help="Run a saved experiment, or configure a new one and run it")
+    run_parser.add_argument(
+        "name", nargs="?", default=None,
+        help="Name of the experiment to run (omit to configure a new one interactively first)",
+    )
 
     # Inspect command
     inspect_parser = subparsers.add_parser("inspect", help="Show an experiment's config and results")
@@ -106,7 +109,11 @@ def _dispatch(args: argparse.Namespace) -> None:
     elif args.command == "delete":
         delete_experiments(args.name, is_all=args.all)
     elif args.command == "run":
-        results = run_experiment(args.name)
+        name = args.name
+        if name is None:
+            config_path = create_experiment()
+            name = config_path.parent.name
+        results = run_experiment(name)
         success(f"Final loss: {results.final_loss}")
         _warn_if_stalled(results)
         console.print()

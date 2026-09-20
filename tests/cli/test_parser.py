@@ -1,3 +1,5 @@
+import pathlib
+
 import pytest
 import orbit.cli.parser as parser_module
 
@@ -128,8 +130,26 @@ def test_missing_command_opens_the_repl(monkeypatch):
     assert calls == ["called"]
 
 
-def test_run_without_name_exits_with_error(monkeypatch):
+def test_run_without_name_configures_then_runs(monkeypatch, capsys):
+    calls = []
+
+    class FakeResults:
+        final_loss = 0.0456
+        loss_history = [1.0, 0.5, 0.0456]  # a healthy, clearly-converging run
+
+    def fake_create_experiment():
+        calls.append("create_experiment")
+        return pathlib.Path(".orbits/experiments/auto_named/experiment.json")
+
+    def fake_run_experiment(name):
+        calls.append(("run_experiment", name))
+        return FakeResults()
+
+    monkeypatch.setattr(parser_module, "create_experiment", fake_create_experiment)
+    monkeypatch.setattr(parser_module, "run_experiment", fake_run_experiment)
     monkeypatch.setattr("sys.argv", ["orbit", "run"])
 
-    with pytest.raises(SystemExit):
-        parser_module.main()
+    parser_module.main()
+
+    assert calls == ["create_experiment", ("run_experiment", "auto_named")]
+    assert "0.0456" in capsys.readouterr().out
