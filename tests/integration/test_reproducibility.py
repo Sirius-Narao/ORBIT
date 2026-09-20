@@ -1,5 +1,5 @@
 import numpy as np
-from orbit.core import TensorDataset, DataLoader
+from orbit.core import TensorDataset, DataLoader, train_test_split
 from orbit.nn.layers import Linear
 from orbit.nn.losses import MSE
 from orbit.nn.optimizers import SGD
@@ -56,6 +56,40 @@ def test_different_seeds_diverge():
     results_b = build_and_run(seed=2)
 
     assert results_a.loss_history != results_b.loss_history
+
+
+def build_and_run_with_split(seed, test_split=0.2):
+    """
+    Same shape as build_and_run(), but seeds before splitting too - proving
+    a seeded run with a test_split reconstructs the identical train/test
+    assignment (not just identical weight init/shuffling) on every call.
+    """
+    np.random.seed(seed)
+
+    X = np.array([[0.0], [1.0], [2.0], [3.0], [4.0], [5.0], [6.0]])
+    Y = np.array([[0.0], [2.0], [4.0], [6.0], [8.0], [10.0], [12.0]])
+    dataset = TensorDataset(X, Y)
+    train_dataset, test_dataset = train_test_split(dataset, test_split)
+    dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=2, shuffle=False)
+
+    model = Linear(1, 1)
+    loss_fn = MSE()
+    optimizer = SGD(model.parameters(), lr=0.01)
+
+    experiment = Experiment(
+        model, loss_fn, optimizer, dataloader, epochs=15, name=f"seed-{seed}-split",
+        test_dataloader=test_dataloader,
+    )
+    return experiment.run()
+
+
+def test_seeded_runs_with_test_split_produce_identical_results():
+    results_a = build_and_run_with_split(seed=42)
+    results_b = build_and_run_with_split(seed=42)
+
+    assert results_a.loss_history == results_b.loss_history
+    assert results_a.test_loss == results_b.test_loss
 
 
 def test_save_reload_preserves_reproducibility(tmp_path):

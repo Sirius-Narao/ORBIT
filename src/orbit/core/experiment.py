@@ -17,6 +17,7 @@ class Experiment:
         verbose: bool = False,
         log_every: int = 100,
         accuracy_fn=None,
+        test_dataloader: Optional[DataLoader] = None,
     ):
         self.model = model
         self.loss_fn = loss_fn
@@ -27,6 +28,7 @@ class Experiment:
         self.log_every = log_every
         self.verbose = verbose
         self.accuracy_fn = accuracy_fn
+        self.test_dataloader = test_dataloader
 
         self.trainer = Trainer()
 
@@ -42,6 +44,12 @@ class Experiment:
             accuracy_fn=self.accuracy_fn,
         )
 
+        test_loss, test_accuracy = None, None
+        if self.test_dataloader is not None:
+            test_loss, test_accuracy = self.trainer.evaluate(
+                self.model, self.loss_fn, self.test_dataloader, accuracy_fn=self.accuracy_fn
+            )
+
         return Results(
             final_loss = final_loss,
             loss_history = self.trainer.history,
@@ -50,4 +58,6 @@ class Experiment:
             duration_seconds = self.trainer.duration_seconds,
             gradient_norm_history = self.trainer.gradient_norm_history,
             accuracy_history = self.trainer.accuracy_history,
+            test_loss = test_loss,
+            test_accuracy = test_accuracy,
             )

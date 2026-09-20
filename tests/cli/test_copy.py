@@ -46,7 +46,7 @@ def write_source_config(root, name):
 
 def test_copy_experiment_overrides_hyperparams_and_keeps_model(tmp_path, monkeypatch):
     write_source_config(tmp_path, "source_exp")
-    fake_prompts(monkeypatch, texts=["copied_exp", "3.0", "8", "500", "999"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "3.0", "8", "500", "", "999"])
 
     config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -75,7 +75,7 @@ def test_copy_experiment_seed_defaults_to_keeping_the_source_seed(tmp_path, monk
     # "1" here stands in for the user just hitting enter on the pre-filled
     # default - questionary would show the source's seed (1) already typed
     # into the field, so accepting it as-is sends back that same text.
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "1"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", "1"])
 
     config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -87,7 +87,7 @@ def test_copy_experiment_seed_defaults_to_keeping_the_source_seed(tmp_path, monk
 
 def test_copy_experiment_blank_seed_gets_a_fresh_random_one(tmp_path, monkeypatch):
     write_source_config(tmp_path, "source_exp")
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", ""])
+    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", ""])
 
     config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -99,7 +99,7 @@ def test_copy_experiment_blank_seed_gets_a_fresh_random_one(tmp_path, monkeypatc
 
 def test_copy_experiment_blank_batch_size_omits_it(tmp_path, monkeypatch):
     write_source_config(tmp_path, "source_exp")
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "", "300", "1"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "", "300", "", "1"])
 
     config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -118,7 +118,7 @@ def test_copy_experiment_preserves_task_when_present(tmp_path, monkeypatch):
     with open(config_path, "w") as f:
         json.dump(config, f)
 
-    fake_prompts(monkeypatch, texts=["copied_exp", "3.0", "8", "500", "999"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "3.0", "8", "500", "", "999"])
 
     copy_config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -126,6 +126,46 @@ def test_copy_experiment_preserves_task_when_present(tmp_path, monkeypatch):
         copy_config = json.load(f)
 
     assert copy_config["task"] == "binary_classification"
+
+
+def test_copy_experiment_test_split_defaults_to_source_value(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    config["test_split"] = 0.3
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    # "0.3" stands in for the user accepting the pre-filled default, same as
+    # test_copy_experiment_seed_defaults_to_keeping_the_source_seed does for seed.
+    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "0.3", "1"])
+
+    copy_config_path = copy_experiment("source_exp", root=tmp_path)
+
+    with open(copy_config_path) as f:
+        copy_config = json.load(f)
+
+    assert copy_config["test_split"] == 0.3
+
+
+def test_copy_experiment_blank_test_split_omits_it(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    config["test_split"] = 0.3
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", "1"])
+
+    copy_config_path = copy_experiment("source_exp", root=tmp_path)
+
+    with open(copy_config_path) as f:
+        copy_config = json.load(f)
+
+    assert "test_split" not in copy_config
 
 
 def test_copy_experiment_missing_source(tmp_path, capsys):

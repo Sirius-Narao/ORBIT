@@ -64,6 +64,32 @@ class Trainer:
         avg_accuracy = (total_correct / total_samples) if accuracy_fn is not None else None
         return avg_loss, grad_norm, avg_accuracy
 
+    def evaluate(self, model: Module, loss_fn: Loss, dataloader: DataLoader, accuracy_fn=None):
+        """
+        Forward-pass-only pass over dataloader: no zero_grad()/backward()/
+        optimizer.step(), so it never mutates the model. Mirrors
+        _run_epoch's batch-weighted averaging. Used for a post-training
+        test-set pass (orbit run, once test_split is set) and will back the
+        planned standalone `orbit test` command later.
+        """
+        model.eval()
+        total_loss = 0.0
+        total_correct = 0.0
+        total_samples = 0
+        for X_batch, Y_batch in dataloader:
+            y_pred = model(X_batch)
+            loss = loss_fn(y_pred, Y_batch)
+            batch_size = X_batch.shape[0]
+            total_loss += loss.data * batch_size
+            total_samples += batch_size
+            if accuracy_fn is not None:
+                total_correct += accuracy_fn(y_pred, Y_batch) * batch_size
+        model.train()
+
+        avg_loss = total_loss / total_samples
+        avg_accuracy = (total_correct / total_samples) if accuracy_fn is not None else None
+        return avg_loss, avg_accuracy
+
     def fit(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int,
             verbose: bool = False, log_every: int = 100, accuracy_fn=None):
 

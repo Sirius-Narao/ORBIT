@@ -4,7 +4,13 @@ import pathlib
 import numpy as np
 import questionary
 
-from orbit.cli.commands.new import _ask_float, _ask_int, _ask_optional_int, _print_config_summary
+from orbit.cli.commands.new import (
+    _ask_float,
+    _ask_int,
+    _ask_optional_float,
+    _ask_optional_int,
+    _print_config_summary,
+)
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir
 from orbit.ui import PROMPT_STYLE, console, success, warning
 
@@ -37,6 +43,9 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
         "Batch size (blank = default 32):", default=str(source.get("batch_size", ""))
     )
     epochs = _ask_int("Epochs:", default=str(source["epochs"]))
+    test_split = _ask_optional_float(
+        "Test split fraction (0-1, blank = no split):", default=str(source.get("test_split", ""))
+    )
     seed = _ask_optional_int(
         "Seed (blank = random):", default=str(source.get("seed", ""))
     )
@@ -55,6 +64,8 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
     }
     if batch_size is not None:
         config["batch_size"] = batch_size
+    if test_split is not None:
+        config["test_split"] = test_split
     if "task" in source:
         config["task"] = source["task"]
 

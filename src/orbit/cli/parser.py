@@ -130,6 +130,10 @@ def _dispatch(args: argparse.Namespace) -> None:
             name = config_path.parent.name
         results = run_experiment(name)
         success(f"Final loss: {results.final_loss}")
+        if results.test_loss is not None:
+            success(f"Test loss: {results.test_loss}")
+            if results.test_accuracy is not None:
+                success(f"Test accuracy: {results.test_accuracy:.2%}")
         _warn_if_stalled(results)
         console.print()
     elif args.command == "inspect":

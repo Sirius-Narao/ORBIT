@@ -109,6 +109,88 @@ def test_run_captures_accuracy_history_when_accuracy_fn_given():
     assert results.accuracy_history == experiment.trainer.accuracy_history
 
 
+def test_run_leaves_test_loss_and_accuracy_none_without_test_dataloader():
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    dataloader = make_dataloader(batch_size=2)
+    optimizer = SGD(model.parameters(), lr=0.05)
+    loss_fn = MSE()
+
+    experiment = Experiment(model, loss_fn, optimizer, dataloader, epochs=3, name="no-test-split-run")
+    results = experiment.run()
+
+    assert results.test_loss is None
+    assert results.test_accuracy is None
+
+
+def test_run_evaluates_test_dataloader_after_training():
+    """
+    With lr=0 the weight never updates, so the test set's loss is fully
+    hand-computable the same way test_trainer.py's fixtures are: a held-out
+    single-row test batch (x=4.0, y=0.0) against the fixed weight=2.0 model
+    gives prediction=8.0, MSE = (8.0-0.0)^2 = 64.0.
+    """
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    train_dataloader = make_dataloader(batch_size=2)
+    optimizer = SGD(model.parameters(), lr=0.0)
+    loss_fn = MSE()
+
+    test_dataset = TensorDataset(np.array([[4.0]]), np.array([[0.0]]))
+    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+    experiment = Experiment(
+        model, loss_fn, optimizer, train_dataloader, epochs=3, name="test-split-run",
+        test_dataloader=test_dataloader,
+    )
+    results = experiment.run()
+
+    assert np.isclose(results.test_loss, 64.0)
+
+
+def test_run_test_accuracy_stays_none_without_accuracy_fn():
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    train_dataloader = make_dataloader(batch_size=2)
+    optimizer = SGD(model.parameters(), lr=0.0)
+    loss_fn = MSE()
+
+    test_dataset = TensorDataset(np.array([[4.0]]), np.array([[0.0]]))
+    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+    experiment = Experiment(
+        model, loss_fn, optimizer, train_dataloader, epochs=3, name="test-split-no-accuracy",
+        test_dataloader=test_dataloader,
+    )
+    results = experiment.run()
+
+    assert results.test_accuracy is None
+
+
+def test_run_does_not_mutate_model_during_test_evaluation():
+    """
+    Training happens first, then the test-set pass - the test pass itself
+    must not further change the trained weights (it's forward-only).
+    """
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    train_dataloader = make_dataloader(batch_size=2)
+    optimizer = SGD(model.parameters(), lr=0.1)
+    loss_fn = MSE()
+
+    test_dataset = TensorDataset(np.array([[4.0]]), np.array([[0.0]]))
+    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+    experiment = Experiment(
+        model, loss_fn, optimizer, train_dataloader, epochs=3, name="test-split-no-mutation",
+        test_dataloader=test_dataloader,
+    )
+    experiment.run()
+    weight_after_run = model.weight.data.copy()
+
+    # Re-running just the evaluate() call directly must not move the weight
+    # any further.
+    experiment.trainer.evaluate(model, loss_fn, test_dataloader)
+
+    assert np.array_equal(model.weight.data, weight_after_run)
+
+
 def test_run_leaves_accuracy_history_none_by_default():
     model = make_fixed_linear(weight=2.0, bias=0.0)
     dataloader = make_dataloader(batch_size=2)

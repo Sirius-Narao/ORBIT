@@ -38,6 +38,7 @@ def test_create_experiment_writes_expected_config(tmp_path, monkeypatch):
             "2.0",          # learning_rate
             "4",            # batch_size
             "3000",         # epochs
+            "",             # test_split (blank = no split)
             "42",           # seed
         ],
         selects=[
@@ -84,7 +85,7 @@ def test_create_experiment_omits_batch_size_when_left_blank(tmp_path, monkeypatc
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_default_batch", "1", "0.1", "", "10", ""],
+        texts=["xor_default_batch", "1", "0.1", "", "10", "", ""],
         selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
     )
 
@@ -109,7 +110,7 @@ def test_create_experiment_fills_in_features_from_dataset_without_prompting(
     # StopIteration or shift every later answer by one and fail below.
     fake_prompts(
         monkeypatch,
-        texts=["xor_single_layer", "1", "0.05", "", "8", ""],
+        texts=["xor_single_layer", "1", "0.05", "", "8", "", ""],
         selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
     )
 
@@ -137,7 +138,7 @@ def test_create_experiment_rejects_output_shape_mismatch_and_lets_user_fix_it(
     # succeed this time.
     fake_prompts(
         monkeypatch,
-        texts=["bad_output_then_fixed", "5", "1", "0.1", "", "10", ""],
+        texts=["bad_output_then_fixed", "5", "1", "0.1", "", "10", "", ""],
         selects=["xor", "Linear", "Done", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
     )
 
@@ -177,7 +178,7 @@ def test_create_experiment_dataset_picker_includes_imported_datasets(
 
     fake_prompts(
         monkeypatch,
-        texts=["housing_model", "1", "0.1", "", "50", ""],
+        texts=["housing_model", "1", "0.1", "", "50", "", ""],
         selects=["housing", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
     )
 
@@ -197,7 +198,7 @@ def test_create_experiment_sets_task_when_accuracy_tracking_chosen(tmp_path, mon
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_binary", "8", "1", "2.0", "4", "3000", "42"],
+        texts=["xor_binary", "8", "1", "2.0", "4", "3000", "", "42"],
         selects=[
             "xor", "Linear", "Tanh", "Linear", "Sigmoid", "Done",
             "MSE", "binary_classification", "SGD",
@@ -212,6 +213,25 @@ def test_create_experiment_sets_task_when_accuracy_tracking_chosen(tmp_path, mon
     assert config["task"] == "binary_classification"
 
 
+def test_create_experiment_includes_test_split_when_given(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+
+    fake_prompts(
+        monkeypatch,
+        texts=["xor_with_split", "1", "0.1", "", "10", "0.2", ""],
+        selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert config["test_split"] == 0.2
+
+
 def test_create_experiment_omits_task_when_not_tracked(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
@@ -219,7 +239,7 @@ def test_create_experiment_omits_task_when_not_tracked(tmp_path, monkeypatch):
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_no_tracking", "1", "0.1", "", "10", ""],
+        texts=["xor_no_tracking", "1", "0.1", "", "10", "", ""],
         selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD"],
     )
 

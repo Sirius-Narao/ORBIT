@@ -334,6 +334,54 @@ def test_load_experiment_with_seed_produces_identical_runs():
     assert results_a.loss_history == results_b.loss_history
 
 
+def test_load_experiment_without_test_split_key_leaves_test_dataloader_none():
+    experiment = load_experiment(_seeded_config(seed=1))
+
+    assert experiment.test_dataloader is None
+
+
+def test_load_experiment_with_test_split_builds_smaller_train_dataloader_and_a_test_dataloader():
+    config = _seeded_config(seed=1)
+    config["test_split"] = 0.2  # xor: 4 rows -> 3 train, 1 test
+
+    experiment = load_experiment(config)
+
+    assert experiment.test_dataloader is not None
+    assert len(experiment.dataloader.dataset) == 3
+    assert len(experiment.test_dataloader.dataset) == 1
+
+
+def test_load_experiment_test_split_present_but_null_defaults_to_point_two():
+    config = _seeded_config(seed=1)
+    config["test_split"] = None
+
+    experiment = load_experiment(config)
+
+    assert experiment.test_dataloader is not None
+    assert len(experiment.dataloader.dataset) == 3
+    assert len(experiment.test_dataloader.dataset) == 1
+
+
+def test_load_experiment_test_split_reports_test_loss_after_run():
+    config = _seeded_config(seed=1)
+    config["test_split"] = 0.2
+
+    results = load_experiment(config).run()
+
+    assert results.test_loss is not None
+
+
+def test_load_experiment_seeded_test_split_is_reproducible():
+    config = _seeded_config(seed=9)
+    config["test_split"] = 0.2
+
+    results_a = load_experiment(config).run()
+    results_b = load_experiment(config).run()
+
+    assert results_a.final_loss == results_b.final_loss
+    assert results_a.test_loss == results_b.test_loss
+
+
 def test_load_experiment_without_seed_does_not_reset_rng():
     """
     A config with no "seed" key must not call np.random.seed() at all -

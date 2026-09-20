@@ -30,6 +30,8 @@ def test_run_dispatches_to_run_experiment_with_name(monkeypatch, capsys):
     class FakeResults:
         final_loss = 0.1234
         loss_history = [1.0, 0.5, 0.1234]  # a healthy, clearly-converging run
+        test_loss = None
+        test_accuracy = None
 
     def fake_run_experiment(name):
         calls.append(name)
@@ -44,10 +46,44 @@ def test_run_dispatches_to_run_experiment_with_name(monkeypatch, capsys):
     assert "0.1234" in capsys.readouterr().out
 
 
+def test_run_reports_test_loss_and_accuracy_when_present(monkeypatch, capsys):
+    class FakeResults:
+        final_loss = 0.1234
+        loss_history = [1.0, 0.5, 0.1234]
+        test_loss = 0.2345
+        test_accuracy = 0.875
+
+    monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
+    monkeypatch.setattr("sys.argv", ["orbit", "run", "split_model"])
+
+    parser_module.main()
+
+    out = capsys.readouterr().out
+    assert "Test loss: 0.2345" in out
+    assert "Test accuracy: 87.50%" in out
+
+
+def test_run_omits_test_loss_line_when_absent(monkeypatch, capsys):
+    class FakeResults:
+        final_loss = 0.1234
+        loss_history = [1.0, 0.5, 0.1234]
+        test_loss = None
+        test_accuracy = None
+
+    monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
+    monkeypatch.setattr("sys.argv", ["orbit", "run", "no_split_model"])
+
+    parser_module.main()
+
+    assert "Test loss" not in capsys.readouterr().out
+
+
 def test_run_warns_when_loss_barely_improves(monkeypatch, capsys):
     class FakeResults:
         final_loss = 0.2389
         loss_history = [0.2448] * 10 + [0.2389]  # ~2% improvement - a stall
+        test_loss = None
+        test_accuracy = None
 
     monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "run", "underpowered_model"])
@@ -61,6 +97,8 @@ def test_run_does_not_warn_on_a_healthy_run(monkeypatch, capsys):
     class FakeResults:
         final_loss = 0.05
         loss_history = [1.0, 0.5, 0.2, 0.05]  # well over the 5% threshold
+        test_loss = None
+        test_accuracy = None
 
     monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "run", "healthy_model"])
@@ -76,6 +114,8 @@ def test_run_does_not_warn_on_single_epoch_run(monkeypatch, capsys):
     class FakeResults:
         final_loss = 0.5
         loss_history = [0.5]
+        test_loss = None
+        test_accuracy = None
 
     monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "run", "one_epoch_model"])
@@ -196,6 +236,8 @@ def test_run_without_name_configures_then_runs(monkeypatch, capsys):
     class FakeResults:
         final_loss = 0.0456
         loss_history = [1.0, 0.5, 0.0456]  # a healthy, clearly-converging run
+        test_loss = None
+        test_accuracy = None
 
     def fake_create_experiment():
         calls.append("create_experiment")

@@ -2,7 +2,7 @@ import csv
 import numpy as np
 from typing import Optional
 
-from orbit.core import Dataset, TensorDataset, DataLoader
+from orbit.core import Dataset, TensorDataset, DataLoader, train_test_split
 from orbit.core.experiment import Experiment
 from orbit.core.metrics import accuracy, accuracy_multiclass
 from orbit.nn import Sequential
@@ -169,16 +169,35 @@ def load_experiment(config: dict) -> Experiment:
     same as tests/integration/test_reproducibility.py's build_and_run(). No
     seed means no call at all, so an unseeded config's randomness is left
     untouched (not reset to some fixed default).
+
+    An optional "test_split" holds out a fraction of the dataset for
+    evaluation after training: key absent means no split at all (today's
+    behavior, unchanged); present with null/no value defaults to 0.2;
+    present with a float uses that ratio. The split is drawn from the same
+    seeded RNG stream, right after the dataset is built and before model
+    init consumes it, so a seeded config's split is reproducible too.
     """
     seed = config.get("seed")
     if seed is not None:
         np.random.seed(seed)
 
     dataset = build_dataset(config["dataset"])
-    model = build_model(config["model"], dataset)
+
+    if "test_split" in config:
+        test_split = config["test_split"] if config["test_split"] is not None else 0.2
+        train_dataset, test_dataset = train_test_split(dataset, test_split)
+    else:
+        train_dataset, test_dataset = dataset, None
+
+    model = build_model(config["model"], train_dataset)
     loss_fn = build_loss(config["loss"])
     optimizer = build_optimizer(config["optimizer"], model.parameters(), config["learning_rate"])
-    dataloader = DataLoader(dataset, batch_size=config.get("batch_size", 32))
+    dataloader = DataLoader(train_dataset, batch_size=config.get("batch_size", 32))
+    test_dataloader = (
+        DataLoader(test_dataset, batch_size=config.get("batch_size", 32), shuffle=False)
+        if test_dataset is not None
+        else None
+    )
     accuracy_fn = build_accuracy_fn(config.get("task"))
 
     return Experiment(
@@ -191,6 +210,7 @@ def load_experiment(config: dict) -> Experiment:
         verbose=True,
         log_every=100,
         accuracy_fn=accuracy_fn,
+        test_dataloader=test_dataloader,
     )
 
 if __name__ == "__main__":

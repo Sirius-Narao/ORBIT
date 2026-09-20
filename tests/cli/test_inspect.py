@@ -32,7 +32,7 @@ def write_config(root, name, epochs=5):
 
 def write_results(
     exp_dir, final_loss=0.1234, loss_history=None, duration_seconds=None, gradient_norm_history=None,
-    accuracy_history=None,
+    accuracy_history=None, test_loss=None, test_accuracy=None,
 ):
     results_dir = exp_dir / "results"
     results_dir.mkdir(parents=True)
@@ -44,6 +44,8 @@ def write_results(
         duration_seconds=duration_seconds,
         gradient_norm_history=gradient_norm_history,
         accuracy_history=accuracy_history,
+        test_loss=test_loss,
+        test_accuracy=test_accuracy,
     )
 
     with open(results_dir / "results.json", "w") as f:
@@ -145,6 +147,34 @@ def test_inspect_experiment_omits_accuracy_when_not_recorded(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "3 epoch" in out
     assert "accuracy" not in out
+
+
+def test_inspect_experiment_shows_test_loss_and_accuracy_when_recorded(tmp_path, capsys):
+    exp_dir = write_config(tmp_path, "xor_test", epochs=3)
+    write_results(
+        exp_dir,
+        final_loss=0.1234,
+        loss_history=[0.5, 0.3, 0.1234],
+        test_loss=0.2345,
+        test_accuracy=0.875,
+    )
+
+    inspect_experiment("xor_test", root=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "test loss 0.2345" in out
+    assert "test accuracy 87.50%" in out
+
+
+def test_inspect_experiment_omits_test_loss_when_not_recorded(tmp_path, capsys):
+    exp_dir = write_config(tmp_path, "xor_test", epochs=3)
+    write_results(exp_dir, final_loss=0.1234, loss_history=[0.5, 0.3, 0.1234])
+
+    inspect_experiment("xor_test", root=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "test loss" not in out
+    assert "test accuracy" not in out
 
 
 def test_inspect_experiment_missing_name(tmp_path, capsys):

@@ -53,6 +53,22 @@ def _ask_float(message, default=""):
     return float(answer)
 
 
+def _ask_optional_float(message, default=""):
+    def validate(text):
+        text = text.strip()
+        if text == "":
+            return True
+        try:
+            float(text)
+            return True
+        except ValueError:
+            return "Please enter a number, or leave blank"
+
+    answer = questionary.text(message, default=default, validate=validate, style=PROMPT_STYLE).ask()
+    answer = answer.strip()
+    return float(answer) if answer else None
+
+
 def _ask_model_layers(dataset) -> list:
     """
     dataset is the Dataset the user already picked - its input_shape fills
@@ -113,6 +129,7 @@ def create_experiment() -> pathlib.Path:
     learning_rate = _ask_float("Learning rate:")
     batch_size = _ask_optional_int("Batch size (blank = default 32):")
     epochs = _ask_int("Epochs:")
+    test_split = _ask_optional_float("Test split fraction (0-1, blank = no split):")
     seed = _ask_optional_int("Seed (blank = random):")
     if seed is None:
         seed = int(np.random.randint(0, 2**31 - 1))
@@ -129,6 +146,8 @@ def create_experiment() -> pathlib.Path:
     }
     if batch_size is not None:
         config["batch_size"] = batch_size
+    if test_split is not None:
+        config["test_split"] = test_split
     if task_choice != "No (not tracked)":
         config["task"] = task_choice
 
@@ -170,6 +189,7 @@ def _print_config_summary(config: dict) -> None:
     table.add_row("Learning rate", str(config["learning_rate"]))
     table.add_row("Batch size", str(config.get("batch_size", "32 (default)")))
     table.add_row("Epochs", str(config["epochs"]))
+    table.add_row("Test split", str(config.get("test_split", "none")))
     table.add_row("Seed", str(config.get("seed", "none (not reproducible)")))
     console.print()
     console.print(table)

@@ -41,6 +41,13 @@ def test_results_defaults_accuracy_history_to_none():
     assert results.accuracy_history is None
 
 
+def test_results_defaults_test_loss_and_test_accuracy_to_none():
+    results = Results(name="run-2", final_loss=0.5, loss_history=[0.5])
+
+    assert results.test_loss is None
+    assert results.test_accuracy is None
+
+
 def test_results_repr_is_a_string_and_mentions_name():
     results = Results(name="run-3", final_loss=0.5, loss_history=[1.0, 0.5])
 
@@ -130,6 +137,32 @@ def test_to_dict_accuracy_history_stays_none_when_unset():
     assert results.to_dict()["accuracy_history"] is None
 
 
+def test_to_dict_includes_test_loss_and_test_accuracy_cast_to_floats():
+    results = Results(
+        name="numpy-run",
+        final_loss=0.1234,
+        loss_history=[1.0, 0.5],
+        test_loss=np.float64(0.2),
+        test_accuracy=np.float64(0.8),
+    )
+
+    data = results.to_dict()
+
+    assert type(data["test_loss"]) is float
+    assert type(data["test_accuracy"]) is float
+    assert data["test_loss"] == 0.2
+    assert data["test_accuracy"] == 0.8
+
+
+def test_to_dict_test_loss_and_test_accuracy_stay_none_when_unset():
+    results = Results(name="run", final_loss=0.5, loss_history=[0.5])
+
+    data = results.to_dict()
+
+    assert data["test_loss"] is None
+    assert data["test_accuracy"] is None
+
+
 def test_from_dict_round_trips_to_dict():
     original = Results(
         name="run-4",
@@ -139,6 +172,8 @@ def test_from_dict_round_trips_to_dict():
         duration_seconds=3.75,
         gradient_norm_history=[2.0, 1.2, 0.4],
         accuracy_history=[0.5, 0.75, 0.9],
+        test_loss=0.5,
+        test_accuracy=0.85,
     )
 
     rebuilt = Results.from_dict(original.to_dict())
@@ -150,6 +185,8 @@ def test_from_dict_round_trips_to_dict():
     assert rebuilt.duration_seconds == original.duration_seconds
     assert rebuilt.gradient_norm_history == original.gradient_norm_history
     assert rebuilt.accuracy_history == original.accuracy_history
+    assert rebuilt.test_loss == original.test_loss
+    assert rebuilt.test_accuracy == original.test_accuracy
 
 
 def test_from_dict_defaults_duration_seconds_when_missing_from_old_data():
@@ -192,3 +229,20 @@ def test_from_dict_defaults_accuracy_history_when_missing_from_old_data():
     rebuilt = Results.from_dict(old_data)
 
     assert rebuilt.accuracy_history is None
+
+
+def test_from_dict_defaults_test_loss_and_test_accuracy_when_missing_from_old_data():
+    old_data = {
+        "name": "pre-test-split-run",
+        "final_loss": 0.5,
+        "loss_history": [1.0, 0.5],
+        "hyperparams": {},
+        "duration_seconds": 1.0,
+        "gradient_norm_history": [1.0, 0.5],
+        "accuracy_history": None,
+    }
+
+    rebuilt = Results.from_dict(old_data)
+
+    assert rebuilt.test_loss is None
+    assert rebuilt.test_accuracy is None

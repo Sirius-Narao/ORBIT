@@ -1,5 +1,5 @@
 from orbit.core.tensor import Tensor
-from orbit.core.dataset import Dataset, TensorDataset
+from orbit.core.dataset import Dataset, TensorDataset, Subset, train_test_split
 from orbit.core.dataloader import DataLoader
 from orbit.core.results import Results
 from orbit.core.metrics import accuracy, accuracy_multiclass
@@ -11,6 +11,8 @@ __all__ = [
     "Tensor",
     "Dataset",
     "TensorDataset",
+    "Subset",
+    "train_test_split",
     "DataLoader",
     "Results",
     "accuracy",

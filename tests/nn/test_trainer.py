@@ -292,6 +292,76 @@ def test_fit_accuracy_history_matches_real_accuracy_function():
     assert np.isclose(trainer.accuracy_history[-1], 2 / 3)
 
 
+def test_evaluate_returns_batch_weighted_average_loss():
+    """
+    Mirrors test_fit_weights_epoch_average_by_batch_size's math, but via
+    evaluate() on a single batch covering all 3 rows: predictions = [2,4,6]
+    against targets [0,0,0] -> MSE = mean(4,16,36) = 56/3.
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    Y = np.array([[0.0], [0.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=3, shuffle=False)
+
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    loss_fn = MSE()
+
+    avg_loss, avg_accuracy = Trainer().evaluate(model, loss_fn, dataloader)
+
+    assert np.isclose(avg_loss, 56 / 3)
+    assert avg_accuracy is None
+
+
+def test_evaluate_does_not_mutate_model_parameters():
+    """
+    evaluate() is forward-pass only - no zero_grad()/backward()/step(), so
+    weights must be bit-for-bit unchanged afterward, and no gradient should
+    even get computed.
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    Y = np.array([[0.0], [0.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    initial_weight = model.weight.data.copy()
+    initial_bias = model.bias.data.copy()
+    loss_fn = MSE()
+
+    Trainer().evaluate(model, loss_fn, dataloader)
+
+    assert np.array_equal(model.weight.data, initial_weight)
+    assert np.array_equal(model.bias.data, initial_bias)
+    assert model.weight.grad is None
+    assert model.bias.grad is None
+
+
+def test_evaluate_computes_batch_weighted_accuracy():
+    """
+    Same batch-weighting shape as test_fit_accuracy_history_is_batch_size_weighted:
+    batch_size=2 over 3 rows -> batches of size [2, 1]. Stub accuracy_fn
+    returns 1.0 then 0.0, so the correct weighted average is
+    (1.0*2 + 0.0*1) / 3 = 2/3, not a naive (1.0+0.0)/2 = 0.5.
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    Y = np.array([[0.0], [0.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    loss_fn = MSE()
+
+    accuracies = iter([1.0, 0.0])
+    stub_accuracy_fn = lambda y_pred, y_true: next(accuracies)
+
+    _, avg_accuracy = Trainer().evaluate(model, loss_fn, dataloader, accuracy_fn=stub_accuracy_fn)
+
+    assert np.isclose(avg_accuracy, 2 / 3)
+
+
 def test_fit_records_duration_seconds(monkeypatch):
     """
     fit() wraps its whole dispatch (start, then end) in time.time(), so
