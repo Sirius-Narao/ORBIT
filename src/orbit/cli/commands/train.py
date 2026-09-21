@@ -3,8 +3,8 @@ from orbit.core import load_experiment, Results
 import json
 import pathlib
 
-def run_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> Results:
-    exp_dir = experiment_dir(name, root = root)
+def train_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> Results:
+    exp_dir = experiment_dir(name, root=root)
 
     try:
         with open(exp_dir / "experiment.json") as f:
@@ -14,10 +14,8 @@ def run_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> Results:
 
     experiment = load_experiment(config)
 
-    results = experiment.run()
-    save_results(results = results, path = exp_dir/"results"/"results.json")
+    results = experiment.run(skip_test=True)
+    save_results(results=results, path=exp_dir/"results"/"results.json")
     save_checkpoint(name, experiment.model, root=root)
 
     return results
-
-

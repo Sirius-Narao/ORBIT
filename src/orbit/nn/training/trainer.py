@@ -69,9 +69,12 @@ class Trainer:
         Forward-pass-only pass over dataloader: no zero_grad()/backward()/
         optimizer.step(), so it never mutates the model. Mirrors
         _run_epoch's batch-weighted averaging. Used for a post-training
-        test-set pass (orbit run, once test_split is set) and will back the
-        planned standalone `orbit test` command later.
+        test-set pass (orbit run, once test_split is set) and by the
+        standalone `orbit test` command.
         """
+        if is_tty():
+            return self._evaluate_with_progress_bar(model, loss_fn, dataloader, accuracy_fn=accuracy_fn)
+
         model.eval()
         total_loss = 0.0
         total_correct = 0.0
@@ -84,6 +87,41 @@ class Trainer:
             total_samples += batch_size
             if accuracy_fn is not None:
                 total_correct += accuracy_fn(y_pred, Y_batch) * batch_size
+        model.train()
+
+        avg_loss = total_loss / total_samples
+        avg_accuracy = (total_correct / total_samples) if accuracy_fn is not None else None
+        return avg_loss, avg_accuracy
+
+    def _evaluate_with_progress_bar(
+        self, model: Module, loss_fn: Loss, dataloader: DataLoader, accuracy_fn=None
+    ):
+        model.eval()
+        total_loss = 0.0
+        total_correct = 0.0
+        total_samples = 0
+        console.print()
+        with Progress(
+            TextColumn("[bold #ffeab0]Evaluating[/bold #ffeab0]"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TextColumn("batch {task.completed}/{task.total}"),
+            TextColumn("loss: {task.fields[loss]:.4f}"),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("evaluate", total=len(dataloader), loss=float("nan"))
+            for X_batch, Y_batch in dataloader:
+                y_pred = model(X_batch)
+                loss = loss_fn(y_pred, Y_batch)
+                batch_size = X_batch.shape[0]
+                total_loss += loss.data * batch_size
+                total_samples += batch_size
+                if accuracy_fn is not None:
+                    total_correct += accuracy_fn(y_pred, Y_batch) * batch_size
+                progress.update(task, advance=1, loss=total_loss / total_samples)
+        console.print()
         model.train()
 
         avg_loss = total_loss / total_samples

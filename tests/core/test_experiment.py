@@ -191,6 +191,25 @@ def test_run_does_not_mutate_model_during_test_evaluation():
     assert np.array_equal(model.weight.data, weight_after_run)
 
 
+def test_run_skip_test_leaves_test_loss_and_accuracy_none_even_with_test_dataloader():
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    train_dataloader = make_dataloader(batch_size=2)
+    optimizer = SGD(model.parameters(), lr=0.0)
+    loss_fn = MSE()
+
+    test_dataset = TensorDataset(np.array([[4.0]]), np.array([[0.0]]))
+    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+    experiment = Experiment(
+        model, loss_fn, optimizer, train_dataloader, epochs=3, name="skip-test-run",
+        test_dataloader=test_dataloader,
+    )
+    results = experiment.run(skip_test=True)
+
+    assert results.test_loss is None
+    assert results.test_accuracy is None
+
+
 def test_run_leaves_accuracy_history_none_by_default():
     model = make_fixed_linear(weight=2.0, bias=0.0)
     dataloader = make_dataloader(batch_size=2)

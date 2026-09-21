@@ -32,7 +32,7 @@ class Experiment:
 
         self.trainer = Trainer()
 
-    def run(self) -> Results:
+    def run(self, skip_test: bool = False) -> Results:
         final_loss = self.trainer.fit(
             self.model,
             self.loss_fn,
@@ -45,7 +45,7 @@ class Experiment:
         )
 
         test_loss, test_accuracy = None, None
-        if self.test_dataloader is not None:
+        if not skip_test and self.test_dataloader is not None:
             test_loss, test_accuracy = self.trainer.evaluate(
                 self.model, self.loss_fn, self.test_dataloader, accuracy_fn=self.accuracy_fn
             )

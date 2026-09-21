@@ -11,6 +11,7 @@ from .datasets import (
     dataset_dir,
 )
 from .experiments import save_results, load_results, EXPERIMENTS_ROOT, experiment_dir
+from .artifacts import save_checkpoint, load_checkpoint, checkpoint_exists, checkpoint_path
 
 __all__ = [
     "save_results",
@@ -23,4 +24,8 @@ __all__ = [
     "list_imported_dataset_names",
     "DATASETS_ROOT",
     "dataset_dir",
+    "save_checkpoint",
+    "load_checkpoint",
+    "checkpoint_exists",
+    "checkpoint_path",
 ]

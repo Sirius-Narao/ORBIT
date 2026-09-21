@@ -4,6 +4,8 @@ import sys
 from orbit.cli.commands.init import init_project
 from orbit.cli.commands.new import create_experiment
 from orbit.cli.commands.run import run_experiment
+from orbit.cli.commands.train import train_experiment
+from orbit.cli.commands.test import test_experiment
 from orbit.cli.commands.list import list_experiments
 from orbit.cli.commands.delete import delete_experiments
 from orbit.cli.commands.inspect import inspect_experiment
@@ -62,6 +64,16 @@ def build_parser() -> argparse.ArgumentParser:
         "name", nargs="?", default=None,
         help="Name of the experiment to run (omit to configure a new one interactively first)",
     )
+
+    # Train command
+    train_parser = subparsers.add_parser("train", help="Train a saved experiment without evaluating its test split")
+    train_parser.add_argument("name", help="Name of the experiment to train")
+
+    # Test command
+    test_parser = subparsers.add_parser(
+        "test", help="Evaluate an already-trained experiment against its held-out test split"
+    )
+    test_parser.add_argument("name", help="Name of the experiment to test")
 
     # Inspect command
     inspect_parser = subparsers.add_parser("inspect", help="Show an experiment's config and results")
@@ -136,6 +148,19 @@ def _dispatch(args: argparse.Namespace) -> None:
                 success(f"Test accuracy: {results.test_accuracy:.2%}")
         _warn_if_stalled(results)
         console.print()
+    elif args.command == "train":
+        results = train_experiment(args.name)
+        success(f"Final loss: {results.final_loss}")
+        _warn_if_stalled(results)
+        console.print()
+    elif args.command == "test":
+        results = test_experiment(args.name)
+        if results is not None:
+            if results.test_loss is not None:
+                success(f"Test loss: {results.test_loss}")
+            if results.test_accuracy is not None:
+                success(f"Test accuracy: {results.test_accuracy:.2%}")
+            console.print()
     elif args.command == "inspect":
         inspect_experiment(args.name)
     elif args.command == "compare":

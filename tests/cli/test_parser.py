@@ -125,6 +125,70 @@ def test_run_does_not_warn_on_single_epoch_run(monkeypatch, capsys):
     assert "Warning" not in capsys.readouterr().out
 
 
+def test_train_dispatches_to_train_experiment_with_name(monkeypatch, capsys):
+    calls = []
+
+    class FakeResults:
+        final_loss = 0.1234
+        loss_history = [1.0, 0.5, 0.1234]
+
+    def fake_train_experiment(name):
+        calls.append(name)
+        return FakeResults()
+
+    monkeypatch.setattr(parser_module, "train_experiment", fake_train_experiment)
+    monkeypatch.setattr("sys.argv", ["orbit", "train", "xor_mlp_01"])
+
+    parser_module.main()
+
+    assert calls == ["xor_mlp_01"]
+    assert "0.1234" in capsys.readouterr().out
+
+
+def test_train_warns_when_loss_barely_improves(monkeypatch, capsys):
+    class FakeResults:
+        final_loss = 0.2389
+        loss_history = [0.2448] * 10 + [0.2389]  # ~2% improvement - a stall
+
+    monkeypatch.setattr(parser_module, "train_experiment", lambda name: FakeResults())
+    monkeypatch.setattr("sys.argv", ["orbit", "train", "underpowered_model"])
+
+    parser_module.main()
+
+    assert "Warning" in capsys.readouterr().out
+
+
+def test_test_dispatches_to_test_experiment_with_name(monkeypatch, capsys):
+    calls = []
+
+    class FakeResults:
+        test_loss = 0.2345
+        test_accuracy = 0.875
+
+    def fake_test_experiment(name):
+        calls.append(name)
+        return FakeResults()
+
+    monkeypatch.setattr(parser_module, "test_experiment", fake_test_experiment)
+    monkeypatch.setattr("sys.argv", ["orbit", "test", "split_model"])
+
+    parser_module.main()
+
+    assert calls == ["split_model"]
+    out = capsys.readouterr().out
+    assert "Test loss: 0.2345" in out
+    assert "Test accuracy: 87.50%" in out
+
+
+def test_test_prints_nothing_extra_when_test_experiment_returns_none(monkeypatch, capsys):
+    monkeypatch.setattr(parser_module, "test_experiment", lambda name: None)
+    monkeypatch.setattr("sys.argv", ["orbit", "test", "not_trained_model"])
+
+    parser_module.main()
+
+    assert "Test loss" not in capsys.readouterr().out
+
+
 def test_import_dispatches_to_import_dataset_with_args(monkeypatch):
     calls = []
     monkeypatch.setattr(

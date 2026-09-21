@@ -51,6 +51,7 @@ def compare_experiments(
     table.add_column("Batch Size")
     table.add_column("Epochs")
     table.add_column("Final Loss")
+    table.add_column("Test Loss")
 
     found_any = False
     plot_candidates = []
@@ -69,6 +70,7 @@ def compare_experiments(
         if results_path.exists():
             results = load_results(results_path)
             final_loss = f"{results.final_loss:.4f}"
+            test_loss = f"{results.test_loss:.4f}" if results.test_loss is not None else "not trained"
             plot_candidates.append(results)
         else:
             final_loss = "not run"
@@ -84,6 +86,7 @@ def compare_experiments(
             str(config.get("batch_size", "32 (default)")),
             str(config["epochs"]),
             final_loss,
+            test_loss
         )
 
     if not found_any:
