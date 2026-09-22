@@ -4,7 +4,12 @@ import questionary
 from orbit.cli.commands.copy import copy_experiment
 
 
-def fake_prompts(monkeypatch, texts):
+def fake_prompts(monkeypatch, texts, select=None):
+    """
+    select=None stands in for the user accepting the select prompt's
+    pre-filled default (the source's value), same way the canned text
+    answers below re-type the source's values to "accept" them.
+    """
     texts = iter(texts)
 
     class FakeAnswer:
@@ -15,6 +20,11 @@ def fake_prompts(monkeypatch, texts):
             return self.value
 
     monkeypatch.setattr(questionary, "text", lambda *a, **k: FakeAnswer(next(texts)))
+    monkeypatch.setattr(
+        questionary,
+        "select",
+        lambda *a, **k: FakeAnswer(select if select is not None else k.get("default")),
+    )
 
 
 def write_source_config(root, name):
@@ -166,6 +176,44 @@ def test_copy_experiment_blank_test_split_omits_it(tmp_path, monkeypatch):
         copy_config = json.load(f)
 
     assert "test_split" not in copy_config
+
+
+def test_copy_experiment_normalize_defaults_to_source_value(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    config["normalize"] = "minmax"
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", "1"])
+
+    copy_config_path = copy_experiment("source_exp", root=tmp_path)
+
+    with open(copy_config_path) as f:
+        copy_config = json.load(f)
+
+    assert copy_config["normalize"] == "minmax"
+
+
+def test_copy_experiment_can_turn_normalize_off(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    config["normalize"] = "standard"
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", "1"], select="none")
+
+    copy_config_path = copy_experiment("source_exp", root=tmp_path)
+
+    with open(copy_config_path) as f:
+        copy_config = json.load(f)
+
+    assert "normalize" not in copy_config
 
 
 def test_copy_experiment_missing_source(tmp_path, capsys):

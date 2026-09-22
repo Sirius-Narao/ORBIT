@@ -14,7 +14,10 @@ from orbit.core.config import (
     build_model,
     list_dataset_names,
 )
+from orbit.core.dataset import NORMALIZE_METHODS
 from orbit.storage import experiment_dir
+
+NORMALIZE_CHOICES = ["none"] + list(NORMALIZE_METHODS)
 from orbit.ui import PROMPT_STYLE, console, info, success, warning
 
 # --- small input helpers -----------------------------------------------------
@@ -126,6 +129,7 @@ def create_experiment() -> pathlib.Path:
         "Track accuracy?", choices=["No (not tracked)"] + list(TASK_REGISTRY.keys()), style=PROMPT_STYLE
     ).ask()
     optimizer = questionary.select("Optimizer:", choices=list(OPTIMIZER_REGISTRY.keys()), style=PROMPT_STYLE).ask()
+    normalize = questionary.select("Normalize inputs?", choices=NORMALIZE_CHOICES, style=PROMPT_STYLE).ask()
     learning_rate = _ask_float("Learning rate:")
     batch_size = _ask_optional_int("Batch size (blank = default 32):")
     epochs = _ask_int("Epochs:")
@@ -150,6 +154,8 @@ def create_experiment() -> pathlib.Path:
         config["test_split"] = test_split
     if task_choice != "No (not tracked)":
         config["task"] = task_choice
+    if normalize != "none":
+        config["normalize"] = normalize
 
     _print_config_summary(config)
 
@@ -190,6 +196,7 @@ def _print_config_summary(config: dict) -> None:
     table.add_row("Batch size", str(config.get("batch_size", "32 (default)")))
     table.add_row("Epochs", str(config["epochs"]))
     table.add_row("Test split", str(config.get("test_split", "none")))
+    table.add_row("Normalize", config.get("normalize", "none"))
     table.add_row("Seed", str(config.get("seed", "none (not reproducible)")))
     console.print()
     console.print(table)

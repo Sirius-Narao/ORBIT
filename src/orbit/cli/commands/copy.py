@@ -5,6 +5,7 @@ import numpy as np
 import questionary
 
 from orbit.cli.commands.new import (
+    NORMALIZE_CHOICES,
     _ask_float,
     _ask_int,
     _ask_optional_float,
@@ -19,8 +20,9 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
     """
     Build a new experiment.json from an existing one's config: dataset,
     model, loss, optimizer, and task (if set) are copied unchanged (editing
-    those means running orbit new from scratch); learning_rate/batch_size/epochs/seed
-    are all re-prompted with the source's values pre-filled as defaults.
+    those means running orbit new from scratch); normalize/learning_rate/
+    batch_size/epochs/test_split/seed are all re-prompted with the source's
+    values pre-filled as defaults.
     Keeping the source's seed (just hit enter) is deliberately the default
     - it's what lets a copy isolate the effect of a hyperparameter change
     from random-init/shuffle noise, the same way an ablation study holds
@@ -38,6 +40,12 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
         source = json.load(f)
 
     new_name = questionary.text("New experiment name:", style=PROMPT_STYLE).ask()
+    normalize = questionary.select(
+        "Normalize inputs?",
+        choices=NORMALIZE_CHOICES,
+        default=source.get("normalize", "none"),
+        style=PROMPT_STYLE,
+    ).ask()
     learning_rate = _ask_float("Learning rate:", default=str(source["learning_rate"]))
     batch_size = _ask_optional_int(
         "Batch size (blank = default 32):", default=str(source.get("batch_size", ""))
@@ -68,6 +76,8 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
         config["test_split"] = test_split
     if "task" in source:
         config["task"] = source["task"]
+    if normalize != "none":
+        config["normalize"] = normalize
 
     _print_config_summary(config)
 

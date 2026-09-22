@@ -398,3 +398,66 @@ def test_load_experiment_without_seed_does_not_reset_rng():
     results_b = load_experiment(_seeded_config()).run()
 
     assert results_a.loss_history != results_b.loss_history
+
+
+# --- normalization -----------------------------------------------------------
+
+from orbit.core import NormalizedDataset, fit_normalizer, apply_normalizer
+
+
+def test_load_experiment_without_normalize_leaves_dataset_unwrapped():
+    experiment = load_experiment(_seeded_config(seed=1))
+
+    assert not isinstance(experiment.dataloader.dataset, NormalizedDataset)
+
+
+def test_load_experiment_with_normalize_wraps_train_dataset():
+    config = _seeded_config(seed=1)
+    config["normalize"] = "standard"
+
+    experiment = load_experiment(config)
+
+    assert isinstance(experiment.dataloader.dataset, NormalizedDataset)
+
+
+def test_load_experiment_normalize_fits_on_train_split_only():
+    """
+    The test rows must be transformed with stats fit on the TRAIN rows only.
+    Recompute the expected stats from the train Subset's raw rows and check
+    the test sample matches that transform - if stats had been fit on the
+    full 4-row dataset instead, xor's column means would be 0.5, not the
+    3-train-row means, and this would not match.
+    """
+    config = _seeded_config(seed=1)
+    config["test_split"] = 0.2
+    config["normalize"] = "standard"
+
+    experiment = load_experiment(config)
+
+    train = experiment.dataloader.dataset.dataset  # unwrap NormalizedDataset -> Subset
+    test = experiment.test_dataloader.dataset.dataset
+    X_train = np.stack([train[i][0] for i in range(len(train))])
+    expected_stats = fit_normalizer(X_train, "standard")
+
+    raw_test_x = test[0][0]
+    normalized_test_x = experiment.test_dataloader.dataset[0][0]
+    assert np.allclose(normalized_test_x, apply_normalizer(raw_test_x, expected_stats))
+    assert np.allclose(experiment.test_dataloader.dataset.stats["mean"], expected_stats["mean"])
+
+
+def test_load_experiment_invalid_normalize_raises():
+    config = _seeded_config(seed=1)
+    config["normalize"] = "bogus"
+
+    with pytest.raises(ValueError):
+        load_experiment(config)
+
+
+def test_load_experiment_normalize_none_is_same_as_absent():
+    config = _seeded_config(seed=3)
+    config["normalize"] = "none"
+
+    results_none = load_experiment(config).run()
+    results_absent = load_experiment(_seeded_config(seed=3)).run()
+
+    assert results_none.loss_history == results_absent.loss_history

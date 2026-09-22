@@ -157,3 +157,80 @@ def test_train_test_split_raises_when_train_set_would_be_empty():
 
     with pytest.raises(ValueError):
         train_test_split(dataset, 0.99)
+
+
+# --- normalization -----------------------------------------------------------
+
+from orbit.core.dataset import NormalizedDataset, fit_normalizer, apply_normalizer
+
+
+def test_standard_normalizer_centers_and_scales():
+    # X = [1, 3]: mean = 2, population std = sqrt(((1-2)^2 + (3-2)^2) / 2) = 1
+    # so (1 - 2) / 1 = -1 and (3 - 2) / 1 = 1.
+    X = np.array([[1.0], [3.0]])
+
+    stats = fit_normalizer(X, "standard")
+
+    assert np.allclose(stats["mean"], [2.0])
+    assert np.allclose(stats["std"], [1.0])
+    assert np.allclose(apply_normalizer(X, stats), [[-1.0], [1.0]])
+
+
+def test_minmax_normalizer_scales_to_unit_range():
+    # X = [2, 4, 6]: min = 2, range = 4, so (x - 2) / 4 = [0, 0.5, 1].
+    X = np.array([[2.0], [4.0], [6.0]])
+
+    stats = fit_normalizer(X, "minmax")
+
+    assert np.allclose(apply_normalizer(X, stats), [[0.0], [0.5], [1.0]])
+
+
+def test_normalizers_scale_each_column_independently():
+    X = np.array([[0.0, 100.0], [10.0, 300.0]])
+
+    out = apply_normalizer(X, fit_normalizer(X, "minmax"))
+
+    assert np.allclose(out, [[0.0, 0.0], [1.0, 1.0]])
+
+
+@pytest.mark.parametrize("method", ["standard", "minmax"])
+def test_constant_column_does_not_produce_nan(method):
+    # std / range of a constant column is 0 - replaced by 1, so the column
+    # maps to all zeros instead of 0/0 = NaN.
+    X = np.array([[5.0, 1.0], [5.0, 2.0], [5.0, 3.0]])
+
+    out = apply_normalizer(X, fit_normalizer(X, method))
+
+    assert np.all(np.isfinite(out))
+    assert np.allclose(out[:, 0], 0.0)
+
+
+def test_fit_normalizer_unknown_method_raises():
+    with pytest.raises(ValueError):
+        fit_normalizer(np.array([[1.0]]), "bogus")
+
+
+def test_normalized_dataset_rescales_x_and_leaves_y_untouched():
+    X = np.array([[1.0], [3.0]])
+    Y = np.array([[10.0], [20.0]])
+    base = TensorDataset(X, Y)
+
+    dataset = NormalizedDataset(base, fit_normalizer(X, "standard"))
+
+    assert len(dataset) == 2
+    assert dataset.input_shape == 1
+    assert dataset.output_shape == 1
+    x0, y0 = dataset[0]
+    assert np.allclose(x0, [-1.0])
+    assert np.allclose(y0, [10.0])
+
+
+def test_normalized_dataset_works_over_a_subset():
+    X = np.array([[1.0], [3.0], [100.0]])
+    Y = np.array([[0.0], [1.0], [0.0]])
+    subset = Subset(TensorDataset(X, Y), [0, 1])
+
+    dataset = NormalizedDataset(subset, fit_normalizer(X[[0, 1]], "standard"))
+
+    assert len(dataset) == 2
+    assert np.allclose(dataset[1][0], [1.0])

@@ -2,7 +2,14 @@ import csv
 import numpy as np
 from typing import Optional
 
-from orbit.core import Dataset, TensorDataset, DataLoader, train_test_split
+from orbit.core import (
+    Dataset,
+    TensorDataset,
+    DataLoader,
+    train_test_split,
+    NormalizedDataset,
+    fit_normalizer,
+)
 from orbit.core.experiment import Experiment
 from orbit.core.metrics import accuracy, accuracy_multiclass
 from orbit.nn import Sequential
@@ -176,6 +183,12 @@ def load_experiment(config: dict) -> Experiment:
     present with a float uses that ratio. The split is drawn from the same
     seeded RNG stream, right after the dataset is built and before model
     init consumes it, so a seeded config's split is reproducible too.
+
+    An optional "normalize" ("standard" or "minmax"; absent/"none" = off)
+    rescales the inputs. Stats are fit on the train split only and reused
+    for the test split, so no test-set information leaks into training.
+    Nothing is persisted: rebuilding from the same seeded config (e.g.
+    orbit test) re-derives the identical split and therefore identical stats.
     """
     seed = config.get("seed")
     if seed is not None:
@@ -188,6 +201,14 @@ def load_experiment(config: dict) -> Experiment:
         train_dataset, test_dataset = train_test_split(dataset, test_split)
     else:
         train_dataset, test_dataset = dataset, None
+
+    method = config.get("normalize", "none")
+    if method != "none":
+        X_train = np.stack([train_dataset[i][0] for i in range(len(train_dataset))])
+        stats = fit_normalizer(X_train, method)
+        train_dataset = NormalizedDataset(train_dataset, stats)
+        if test_dataset is not None:
+            test_dataset = NormalizedDataset(test_dataset, stats)
 
     model = build_model(config["model"], train_dataset)
     loss_fn = build_loss(config["loss"])
