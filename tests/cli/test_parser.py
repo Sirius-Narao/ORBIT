@@ -224,32 +224,110 @@ def test_import_dispatches_with_defaults_when_optional_flags_omitted(monkeypatch
     assert calls == [("data.csv", None, None)]
 
 
-def test_plot_dispatches_to_plot_experiment_with_name(monkeypatch):
+def test_plotloss_dispatches_to_plot_experiment_with_name(monkeypatch):
     calls = []
     monkeypatch.setattr(
         parser_module,
         "plot_experiment",
         lambda name, log_scale=False: calls.append((name, log_scale)),
     )
-    monkeypatch.setattr("sys.argv", ["orbit", "plot", "xor_mlp_01"])
+    monkeypatch.setattr("sys.argv", ["orbit", "plotloss", "xor_mlp_01"])
 
     parser_module.main()
 
     assert calls == [("xor_mlp_01", False)]
 
 
-def test_plot_dispatches_with_logscale_flag(monkeypatch):
+def test_plotloss_dispatches_with_logscale_flag(monkeypatch):
     calls = []
     monkeypatch.setattr(
         parser_module,
         "plot_experiment",
         lambda name, log_scale=False: calls.append((name, log_scale)),
     )
-    monkeypatch.setattr("sys.argv", ["orbit", "plot", "xor_mlp_01", "--logscale"])
+    monkeypatch.setattr("sys.argv", ["orbit", "plotloss", "xor_mlp_01", "--logscale"])
 
     parser_module.main()
 
     assert calls == [("xor_mlp_01", True)]
+
+
+def test_plot_dispatches_with_names(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        parser_module,
+        "plot_experiments",
+        lambda names, is_all=False, log_scale=False, metrics=None: calls.append(
+            (names, is_all, log_scale, metrics)
+        ),
+    )
+    monkeypatch.setattr("sys.argv", ["orbit", "plot", "exp_a", "exp_b"])
+
+    parser_module.main()
+
+    assert calls == [(["exp_a", "exp_b"], False, False, None)]
+
+
+def test_plot_dispatches_with_all_flag(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        parser_module,
+        "plot_experiments",
+        lambda names, is_all=False, log_scale=False, metrics=None: calls.append(
+            (names, is_all, log_scale, metrics)
+        ),
+    )
+    monkeypatch.setattr("sys.argv", ["orbit", "plot", "--all"])
+
+    parser_module.main()
+
+    assert calls == [([], True, False, None)]
+
+
+def test_plot_dispatches_with_logscale_flag(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        parser_module,
+        "plot_experiments",
+        lambda names, is_all=False, log_scale=False, metrics=None: calls.append(
+            (names, is_all, log_scale, metrics)
+        ),
+    )
+    monkeypatch.setattr("sys.argv", ["orbit", "plot", "exp_a", "--logscale"])
+
+    parser_module.main()
+
+    assert calls == [(["exp_a"], False, True, None)]
+
+
+def test_plot_dispatches_with_metrics_flag(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        parser_module,
+        "plot_experiments",
+        lambda names, is_all=False, log_scale=False, metrics=None: calls.append(
+            (names, is_all, log_scale, metrics)
+        ),
+    )
+    monkeypatch.setattr(
+        "sys.argv", ["orbit", "plot", "exp_a", "--metrics", "loss", "test_accuracy"]
+    )
+
+    parser_module.main()
+
+    assert calls == [(["exp_a"], False, False, ["loss", "test_accuracy"])]
+
+
+def test_plot_rejects_unknown_metric_choice(monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["orbit", "plot", "exp_a", "--metrics", "bogus"])
+
+    try:
+        parser_module.main()
+        assert False, "expected SystemExit"
+    except SystemExit:
+        pass
+
+    assert "invalid choice" in capsys.readouterr().err
 
 
 def test_compare_dispatches_with_plotloss_flag(monkeypatch):

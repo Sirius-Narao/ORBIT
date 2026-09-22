@@ -181,6 +181,17 @@ def test_comparison_filename_with_log_scale():
     assert _comparison_filename(["exp_a", "exp_b"], log_scale=True) == "exp_a_vs_exp_b_log_scale.png"
 
 
+def test_comparison_filename_with_metric():
+    assert _comparison_filename(["exp_a", "exp_b"], log_scale=False, metric="loss") == "exp_a_vs_exp_b_loss.png"
+
+
+def test_comparison_filename_with_metric_and_log_scale():
+    assert (
+        _comparison_filename(["exp_a", "exp_b"], log_scale=True, metric="loss")
+        == "exp_a_vs_exp_b_loss_log_scale.png"
+    )
+
+
 def test_comparison_filename_long_names_with_log_scale():
     names = [f"experiment_number_{i}" for i in range(10)]  # joined name exceeds 100 chars
 

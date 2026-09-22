@@ -10,8 +10,12 @@ from orbit.visualization import plot_loss_comparison
 COMPARISONS_ROOT = pathlib.Path(".orbits/comparisons")
 
 
-def _comparison_filename(names: list, log_scale: bool) -> str:
-    extension = "_log_scale" if log_scale else ""
+def _comparison_filename(names: list, log_scale: bool, metric: str = None) -> str:
+    extension = ""
+    if metric:
+        extension += f"_{metric}"
+    if log_scale:
+        extension += "_log_scale"
 
     joined = "_vs_".join(sorted(names))
     if len(joined) > 100:
@@ -74,6 +78,7 @@ def compare_experiments(
             plot_candidates.append(results)
         else:
             final_loss = "not run"
+            test_loss = "not run"
 
         found_any = True
         table.add_row(

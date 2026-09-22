@@ -14,7 +14,8 @@ from orbit.cli.commands.compare import compare_experiments
 from orbit.cli.commands.reproduce import reproduce_experiment
 from orbit.cli.commands.copy import copy_experiment
 from orbit.cli.commands.rename import rename_experiment
-from orbit.cli.commands.plot import plot_experiment
+from orbit.cli.commands.plotloss import plot_experiment
+from orbit.cli.commands.plot import plot_experiments
 from orbit.ui import console, success, warning
 
 # Below this relative improvement between the first and last epoch's loss,
@@ -107,12 +108,26 @@ def build_parser() -> argparse.ArgumentParser:
     rename_parser.add_argument("old_name", help="Current name of the experiment")
     rename_parser.add_argument("new_name", help="New name for the experiment")
 
-    # Plot command
-    plot_parser = subparsers.add_parser("plot", help="Plot an experiment's recorded loss curve")
-    plot_parser.add_argument("name", help="Name of the experiment to plot")
-    plot_parser.add_argument(
+    # Plotloss command
+    plotloss_parser = subparsers.add_parser("plotloss", help="Plot an experiment's recorded loss curve")
+    plotloss_parser.add_argument("name", help="Name of the experiment to plot")
+    plotloss_parser.add_argument(
         "--logscale", action="store_true",
         help="Use a log-scale y-axis (helps see small changes late in training)",
+    )
+
+    # Plot command (interactive multi-metric)
+    plot_parser = subparsers.add_parser("plot", help="Interactively plot one or more experiments' metrics")
+    plot_parser.add_argument("names", nargs="*", help="Names of experiments to plot (omit with --all)")
+    plot_parser.add_argument("--all", action="store_true", help="Plot every experiment")
+    plot_parser.add_argument(
+        "--logscale", action="store_true",
+        help="Use a log-scale y-axis where applicable (helps see small changes late in training)",
+    )
+    plot_parser.add_argument(
+        "--metrics", nargs="+",
+        choices=["loss", "accuracy", "gradient_norm", "test_loss", "test_accuracy"],
+        help="Metric(s) to plot (default: prompted interactively)",
     )
 
     # Import command
@@ -171,8 +186,10 @@ def _dispatch(args: argparse.Namespace) -> None:
         copy_experiment(args.source)
     elif args.command == "rename":
         rename_experiment(args.old_name, args.new_name)
-    elif args.command == "plot":
+    elif args.command == "plotloss":
         plot_experiment(args.name, log_scale=args.logscale)
+    elif args.command == "plot":
+        plot_experiments(args.names, is_all=args.all, log_scale=args.logscale, metrics=args.metrics)
     elif args.command == "import":
         import_dataset(args.csv_path, name=args.name, target_columns=args.target)
 

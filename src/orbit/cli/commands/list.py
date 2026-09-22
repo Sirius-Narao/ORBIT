@@ -22,7 +22,7 @@ def list_experiments(root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
     table.add_column("Name")
     table.add_column("Status")
     table.add_column("Final Loss")
-    table.add_column("Train Loss")
+    table.add_column("Test Loss")
     table.add_column("Epochs")
     table.add_column("Duration")
     table.add_column("Grad Norm")
@@ -36,7 +36,7 @@ def list_experiments(root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
             duration = f"{results.duration_seconds:.2f}s" if results.duration_seconds is not None else "-"
             grad_norm = f"{results.gradient_norm_history[-1]:.4f}" if results.gradient_norm_history else "-"
             accuracy = f"{results.accuracy_history[-1] * 100:.2f}%" if results.accuracy_history else "-"
-            test_loss = f"{results.final_loss:.4f}" if results.test_loss is not None else "-"
+            test_loss = f"{results.test_loss:.4f}" if results.test_loss is not None else "-"
             table.add_row(
                 name, "done", f"{results.final_loss:.4f}", test_loss, str(len(results.loss_history)),
                 duration, grad_norm, accuracy,
