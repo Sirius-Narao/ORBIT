@@ -461,3 +461,65 @@ def test_load_experiment_normalize_none_is_same_as_absent():
     results_absent = load_experiment(_seeded_config(seed=3)).run()
 
     assert results_none.loss_history == results_absent.loss_history
+
+
+# --- regression tasks --------------------------------------------------------
+
+from orbit.core import Tensor
+from orbit.core.metrics import r2_score
+
+
+def test_build_accuracy_fn_regression_r2():
+    assert build_accuracy_fn("regression_r2") is r2_score
+
+
+def test_build_accuracy_fn_regression_tolerance_defaults_to_half():
+    fn = build_accuracy_fn("regression_tolerance")
+
+    # |diff| = 0.5 is inside the default tolerance, 0.6 is not.
+    assert fn(Tensor([[1.5]]), Tensor([[1.0]])) == 1.0
+    assert fn(Tensor([[1.6]]), Tensor([[1.0]])) == 0.0
+
+
+def test_build_accuracy_fn_regression_tolerance_uses_custom_tolerance():
+    fn = build_accuracy_fn("regression_tolerance", tolerance=1.0)
+
+    assert fn(Tensor([[1.9]]), Tensor([[1.0]])) == 1.0
+
+
+def test_load_experiment_records_task_and_tolerance_in_hyperparams():
+    config = _seeded_config(seed=1)
+    config["task"] = "regression_tolerance"
+    config["accuracy_tolerance"] = 0.25
+
+    results = load_experiment(config).run()
+
+    assert results.hyperparams["task"] == "regression_tolerance"
+    assert results.hyperparams["accuracy_tolerance"] == 0.25
+
+
+def test_load_experiment_records_default_tolerance_when_omitted():
+    config = _seeded_config(seed=1)
+    config["task"] = "regression_tolerance"
+
+    results = load_experiment(config).run()
+
+    assert results.hyperparams["accuracy_tolerance"] == 0.5
+
+
+def test_load_experiment_without_task_leaves_task_out_of_hyperparams():
+    results = load_experiment(_seeded_config(seed=1)).run()
+
+    assert "task" not in results.hyperparams
+    assert "accuracy_tolerance" not in results.hyperparams
+
+
+def test_load_experiment_regression_r2_tracks_r2_history():
+    config = _seeded_config(seed=1)
+    config["task"] = "regression_r2"
+
+    results = load_experiment(config).run()
+
+    assert len(results.accuracy_history) == config["epochs"]
+    assert results.hyperparams["task"] == "regression_r2"
+    assert "accuracy_tolerance" not in results.hyperparams

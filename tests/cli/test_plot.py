@@ -207,7 +207,7 @@ def test_plot_experiments_interactive_prompt_maps_labels_to_keys(tmp_path, monke
 
     class FakeAsk:
         def ask(self_inner):
-            return ["Training loss", "Test accuracy"]
+            return ["Training loss", "Test accuracy / R²"]
 
     monkeypatch.setattr(
         "orbit.cli.commands.plot.questionary.checkbox",

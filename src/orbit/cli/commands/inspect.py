@@ -2,6 +2,7 @@ import json
 import pathlib
 
 from orbit.cli.commands.new import _print_config_summary
+from orbit.core.metrics import format_metric, metric_label
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
 from orbit.ui import console, info, warning
 
@@ -32,12 +33,15 @@ def inspect_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None
             message += f" in {results.duration_seconds:.2f}s"
         if results.gradient_norm_history:
             message += f", final gradient norm {results.gradient_norm_history[-1]:.4f}"
+        task = results.hyperparams.get("task")
+        label = metric_label(task)
+        name = "accuracy" if label == "Accuracy" else label
         if results.accuracy_history:
-            message += f", final accuracy {results.accuracy_history[-1] * 100:.2f}%"
+            message += f", final {name} {format_metric(results.accuracy_history[-1], task)}"
         if results.test_loss is not None:
             message += f", test loss {results.test_loss:.4f}"
         if results.test_accuracy is not None:
-            message += f", test accuracy {results.test_accuracy * 100:.2f}%"
+            message += f", test {name} {format_metric(results.test_accuracy, task)}"
         info(message)
     else:
         info("Not run yet.")

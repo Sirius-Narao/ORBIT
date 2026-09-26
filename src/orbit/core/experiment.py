@@ -18,6 +18,8 @@ class Experiment:
         log_every: int = 100,
         accuracy_fn=None,
         test_dataloader: Optional[DataLoader] = None,
+        task: Optional[str] = None,
+        accuracy_tolerance: Optional[float] = None,
     ):
         self.model = model
         self.loss_fn = loss_fn
@@ -29,6 +31,8 @@ class Experiment:
         self.verbose = verbose
         self.accuracy_fn = accuracy_fn
         self.test_dataloader = test_dataloader
+        self.task = task
+        self.accuracy_tolerance = accuracy_tolerance
 
         self.trainer = Trainer()
 
@@ -50,10 +54,18 @@ class Experiment:
                 self.model, self.loss_fn, self.test_dataloader, accuracy_fn=self.accuracy_fn
             )
 
+        hyperparams = {"epochs": self.epochs, "lr": self.optimizer.lr, "batch_size": self.dataloader.batch_size, "loss": self.loss_fn.name}
+        # Recorded so displays know whether accuracy_history/test_accuracy
+        # hold a percentage-style accuracy or an R^2 (see metrics.format_metric).
+        if self.task is not None:
+            hyperparams["task"] = self.task
+        if self.accuracy_tolerance is not None:
+            hyperparams["accuracy_tolerance"] = self.accuracy_tolerance
+
         return Results(
             final_loss = final_loss,
             loss_history = self.trainer.history,
-            hyperparams={"epochs": self.epochs, "lr": self.optimizer.lr, "batch_size": self.dataloader.batch_size, "loss": self.loss_fn.name},
+            hyperparams=hyperparams,
             name = self.name,
             duration_seconds = self.trainer.duration_seconds,
             gradient_norm_history = self.trainer.gradient_norm_history,

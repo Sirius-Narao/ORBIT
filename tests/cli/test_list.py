@@ -126,3 +126,23 @@ def test_list_experiments_ignores_non_directory_entries(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "real_exp" in out
     assert "stray_file.txt" not in out
+
+
+def test_list_experiments_shows_r2_as_a_plain_number(tmp_path, capsys):
+    results_dir = tmp_path / "r2_exp" / "results"
+    results_dir.mkdir(parents=True)
+    results = Results(
+        name="r2_exp",
+        final_loss=0.5,
+        loss_history=[0.5],
+        hyperparams={"task": "regression_r2"},
+        accuracy_history=[0.3, 0.7123],
+    )
+    with open(results_dir / "results.json", "w") as f:
+        json.dump(results.to_dict(), f)
+
+    list_experiments(root=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "0.7123" in out
+    assert "71.23%" not in out

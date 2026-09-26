@@ -52,6 +52,7 @@ def test_run_reports_test_loss_and_accuracy_when_present(monkeypatch, capsys):
         loss_history = [1.0, 0.5, 0.1234]
         test_loss = 0.2345
         test_accuracy = 0.875
+        hyperparams = {}
 
     monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "run", "split_model"])
@@ -164,6 +165,7 @@ def test_test_dispatches_to_test_experiment_with_name(monkeypatch, capsys):
     class FakeResults:
         test_loss = 0.2345
         test_accuracy = 0.875
+        hyperparams = {}
 
     def fake_test_experiment(name):
         calls.append(name)
@@ -397,3 +399,21 @@ def test_run_without_name_configures_then_runs(monkeypatch, capsys):
 
     assert calls == ["create_experiment", ("run_experiment", "auto_named")]
     assert "0.0456" in capsys.readouterr().out
+
+
+def test_run_reports_test_r2_as_a_plain_number(monkeypatch, capsys):
+    class FakeResults:
+        final_loss = 0.1234
+        loss_history = [1.0, 0.5, 0.1234]
+        test_loss = 0.2345
+        test_accuracy = 0.8123
+        hyperparams = {"task": "regression_r2"}
+
+    monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
+    monkeypatch.setattr("sys.argv", ["orbit", "run", "regression_model"])
+
+    parser_module.main()
+
+    out = capsys.readouterr().out
+    assert "Test R²: 0.8123" in out
+    assert "%" not in out

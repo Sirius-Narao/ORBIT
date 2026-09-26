@@ -76,6 +76,8 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
         config["test_split"] = test_split
     if "task" in source:
         config["task"] = source["task"]
+    if "accuracy_tolerance" in source:
+        config["accuracy_tolerance"] = source["accuracy_tolerance"]
     if normalize != "none":
         config["normalize"] = normalize
 

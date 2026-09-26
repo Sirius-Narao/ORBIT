@@ -58,3 +58,27 @@ def test_plot_accuracy_log_scale_saves_a_png_file(tmp_path):
     assert returned == output_path
     assert output_path.exists()
     assert output_path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_accuracy_axis_label_by_task():
+    from orbit.visualization.accuracy import accuracy_axis_label
+
+    r2 = Results(name="a", final_loss=0.1, loss_history=[0.1], hyperparams={"task": "regression_r2"})
+    clf = Results(name="b", final_loss=0.1, loss_history=[0.1], hyperparams={"task": "binary_classification"})
+    old = Results(name="c", final_loss=0.1, loss_history=[0.1])  # results.json predating "task"
+
+    assert accuracy_axis_label([r2]) == "R²"
+    assert accuracy_axis_label([clf, old]) == "Accuracy"
+    assert accuracy_axis_label([r2, clf]) == "Accuracy / R²"
+
+
+def test_plot_accuracy_saves_a_png_for_an_r2_run(tmp_path):
+    results = Results(
+        name="r2_run", final_loss=0.1, loss_history=[0.5, 0.1],
+        hyperparams={"task": "regression_r2"}, accuracy_history=[-0.4, 0.8],
+    )
+    output_path = tmp_path / "accuracy.png"
+
+    plot_accuracy(results, output_path)
+
+    assert output_path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"

@@ -6,6 +6,7 @@ import questionary
 from rich.table import Table
 
 from orbit.core.config import (
+    DEFAULT_ACCURACY_TOLERANCE,
     LAYER_REGISTRY,
     LOSS_REGISTRY,
     OPTIMIZER_REGISTRY,
@@ -128,6 +129,12 @@ def create_experiment() -> pathlib.Path:
     task_choice = questionary.select(
         "Track accuracy?", choices=["No (not tracked)"] + list(TASK_REGISTRY.keys()), style=PROMPT_STYLE
     ).ask()
+    accuracy_tolerance = None
+    if task_choice == "regression_tolerance":
+        accuracy_tolerance = _ask_float(
+            "Accuracy tolerance (|prediction - target| counted as correct):",
+            default=str(DEFAULT_ACCURACY_TOLERANCE),
+        )
     optimizer = questionary.select("Optimizer:", choices=list(OPTIMIZER_REGISTRY.keys()), style=PROMPT_STYLE).ask()
     normalize = questionary.select("Normalize inputs?", choices=NORMALIZE_CHOICES, style=PROMPT_STYLE).ask()
     learning_rate = _ask_float("Learning rate:")
@@ -154,6 +161,8 @@ def create_experiment() -> pathlib.Path:
         config["test_split"] = test_split
     if task_choice != "No (not tracked)":
         config["task"] = task_choice
+    if accuracy_tolerance is not None:
+        config["accuracy_tolerance"] = accuracy_tolerance
     if normalize != "none":
         config["normalize"] = normalize
 
@@ -190,7 +199,10 @@ def _print_config_summary(config: dict) -> None:
     table.add_row("Dataset", config["dataset"])
     table.add_row("Model", _format_model_summary(config["model"]))
     table.add_row("Loss", config["loss"])
-    table.add_row("Task", config.get("task", "none (not tracked)"))
+    task = config.get("task", "none (not tracked)")
+    if task == "regression_tolerance":
+        task += f" (±{config.get('accuracy_tolerance', DEFAULT_ACCURACY_TOLERANCE)})"
+    table.add_row("Task", task)
     table.add_row("Optimizer", config["optimizer"])
     table.add_row("Learning rate", str(config["learning_rate"]))
     table.add_row("Batch size", str(config.get("batch_size", "32 (default)")))

@@ -2,6 +2,7 @@ import pathlib
 from typing import List
 
 from orbit.core import Results
+from orbit.visualization.accuracy import accuracy_axis_label
 
 
 def _bar_chart(
@@ -63,7 +64,8 @@ def plot_test_accuracy(
 ) -> pathlib.Path:
     if not results_list:
         raise ValueError("No results to plot.")
+    label = f"Test {accuracy_axis_label(results_list)}"
     return _bar_chart(
-        results_list, value_fn=lambda r: r.test_accuracy, ylabel="Test Accuracy",
-        title="Test Accuracy", output_path=output_path, log_scale=log_scale,
+        results_list, value_fn=lambda r: r.test_accuracy, ylabel=label,
+        title=label, output_path=output_path, log_scale=log_scale,
     )

@@ -241,13 +241,12 @@ def test_fit_accuracy_history_stays_none_without_accuracy_fn():
     assert trainer.accuracy_history is None
 
 
-def test_fit_accuracy_history_is_batch_size_weighted():
+def test_fit_accuracy_fn_is_called_once_on_the_whole_epoch():
     """
-    Mirrors test_fit_weights_epoch_average_by_batch_size's batch-weighting
-    logic, but for accuracy: batch_size=2 -> batches of size [2, 1]. A stub
-    accuracy_fn returns 1.0 for the first batch and 0.0 for the second, so
-    the correct sample-weighted epoch average is (1.0*2 + 0.0*1) / 3 = 2/3,
-    not a naive (1.0 + 0.0) / 2 = 0.5.
+    batch_size=2 over 3 rows -> batches of size [2, 1], but accuracy_fn must
+    see all 3 rows in a single call, not once per batch - a metric like R^2
+    can't be averaged across batches. A recording stub proves the call
+    count and the row count.
     """
     X = np.array([[1.0], [2.0], [3.0]])
     Y = np.array([[0.0], [0.0], [0.0]])
@@ -259,13 +258,67 @@ def test_fit_accuracy_history_is_batch_size_weighted():
     loss_fn = MSE()
     optimizer = SGD(model.parameters(), lr=0.0)
 
-    accuracies = iter([1.0, 0.0])
-    stub_accuracy_fn = lambda y_pred, y_true: next(accuracies)
+    calls = []
+    def recording_accuracy_fn(y_pred, y_true):
+        calls.append((y_pred.data.shape[0], y_true.data.shape[0]))
+        return 0.5
 
     trainer = Trainer()
-    trainer.fit(model, loss_fn, optimizer, dataloader, epochs=1, accuracy_fn=stub_accuracy_fn)
+    trainer.fit(model, loss_fn, optimizer, dataloader, epochs=1, accuracy_fn=recording_accuracy_fn)
+
+    assert calls == [(3, 3)]
+    assert trainer.accuracy_history == [0.5]
+
+
+def test_fit_classification_accuracy_is_unchanged_by_uneven_batches():
+    """
+    For a per-sample average like binary accuracy, computing it once over
+    the whole epoch must equal the old batch-size-weighted average of batch
+    accuracies. Identity model (weight=1, bias=0), predictions = X =
+    [0.2, 0.6, 0.9] -> thresholded [0, 1, 1] vs targets [0, 1, 0] -> 2/3,
+    both over batches [2, 1] (batch accuracies 1.0 and 0.0, weighted
+    (1*2 + 0*1)/3 = 2/3) and over the whole epoch.
+    """
+    X = np.array([[0.2], [0.6], [0.9]])
+    Y = np.array([[0.0], [1.0], [0.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+
+    model = make_fixed_linear(weight=1.0, bias=0.0)
+    optimizer = SGD(model.parameters(), lr=0.0)
+
+    trainer = Trainer()
+    trainer.fit(model, MSE(), optimizer, dataloader, epochs=1, accuracy_fn=accuracy)
 
     assert np.isclose(trainer.accuracy_history[-1], 2 / 3)
+
+
+def test_fit_r2_is_exact_even_with_single_row_batches():
+    """
+    batch_size=1: each batch has one row, where R^2 is undefined (SS_tot = 0),
+    so a per-batch average couldn't give a meaningful value. Computed over
+    the whole epoch it must equal r2_score on the full data.
+
+    weight=1, bias=0 (identity): predictions = X = [1, 2, 4], targets
+    Y = [1, 3, 5]. mean(Y) = 3, SS_tot = 4 + 0 + 4 = 8,
+    SS_res = 0 + 1 + 1 = 2 -> R^2 = 1 - 2/8 = 0.75.
+    """
+    from orbit.core.metrics import r2_score
+
+    X = np.array([[1.0], [2.0], [4.0]])
+    Y = np.array([[1.0], [3.0], [5.0]])
+
+    dataset = TensorDataset(X, Y)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+    model = make_fixed_linear(weight=1.0, bias=0.0)
+    optimizer = SGD(model.parameters(), lr=0.0)
+
+    trainer = Trainer()
+    trainer.fit(model, MSE(), optimizer, dataloader, epochs=1, accuracy_fn=r2_score)
+
+    assert np.isclose(trainer.accuracy_history[-1], 0.75)
 
 
 def test_fit_accuracy_history_matches_real_accuracy_function():
@@ -338,27 +391,29 @@ def test_evaluate_does_not_mutate_model_parameters():
     assert model.bias.grad is None
 
 
-def test_evaluate_computes_batch_weighted_accuracy():
+def test_evaluate_computes_accuracy_once_on_the_whole_pass():
     """
-    Same batch-weighting shape as test_fit_accuracy_history_is_batch_size_weighted:
-    batch_size=2 over 3 rows -> batches of size [2, 1]. Stub accuracy_fn
-    returns 1.0 then 0.0, so the correct weighted average is
-    (1.0*2 + 0.0*1) / 3 = 2/3, not a naive (1.0+0.0)/2 = 0.5.
+    Same shape as test_fit_accuracy_fn_is_called_once_on_the_whole_epoch:
+    batches of size [2, 1], but accuracy_fn is called once on all 3 rows.
+    Identity model, same data as
+    test_fit_classification_accuracy_is_unchanged_by_uneven_batches -> 2/3.
     """
-    X = np.array([[1.0], [2.0], [3.0]])
-    Y = np.array([[0.0], [0.0], [0.0]])
+    X = np.array([[0.2], [0.6], [0.9]])
+    Y = np.array([[0.0], [1.0], [0.0]])
 
     dataset = TensorDataset(X, Y)
     dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
 
-    model = make_fixed_linear(weight=2.0, bias=0.0)
-    loss_fn = MSE()
+    model = make_fixed_linear(weight=1.0, bias=0.0)
 
-    accuracies = iter([1.0, 0.0])
-    stub_accuracy_fn = lambda y_pred, y_true: next(accuracies)
+    calls = []
+    def recording_accuracy(y_pred, y_true):
+        calls.append(y_pred.data.shape[0])
+        return accuracy(y_pred, y_true)
 
-    _, avg_accuracy = Trainer().evaluate(model, loss_fn, dataloader, accuracy_fn=stub_accuracy_fn)
+    _, avg_accuracy = Trainer().evaluate(model, MSE(), dataloader, accuracy_fn=recording_accuracy)
 
+    assert calls == [3]
     assert np.isclose(avg_accuracy, 2 / 3)
 
 

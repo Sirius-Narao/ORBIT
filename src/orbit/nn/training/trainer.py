@@ -10,7 +10,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from orbit.core import DataLoader
+from orbit.core import DataLoader, Tensor
 from orbit.nn import Module
 from orbit.nn.losses import Loss
 from orbit.nn.optimizers import Optimizer
@@ -30,6 +30,18 @@ def _gradient_norm(model: Module) -> float:
     return float(np.sqrt(squared_sum))
 
 
+def _whole_pass_metric(accuracy_fn, predictions: list, targets: list):
+    """
+    Apply accuracy_fn once to every sample seen in an epoch/evaluation pass,
+    rather than averaging per-batch values. For a per-sample average like
+    classification accuracy both give the same number, but R^2 isn't one -
+    averaging per-batch R^2 is wrong, and a 1-row batch has no R^2 at all.
+    """
+    if accuracy_fn is None:
+        return None
+    return accuracy_fn(Tensor(np.concatenate(predictions)), Tensor(np.concatenate(targets)))
+
+
 class Trainer:
     def __init__(self):
         self.history = []
@@ -41,8 +53,8 @@ class Trainer:
         self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, accuracy_fn=None
     ):
         total_loss = 0.0
-        total_correct = 0.0
         total_samples = 0
+        predictions, targets = [], []
         for X_batch, Y_batch in dataloader:
             y_pred = model(X_batch)
             loss = loss_fn(y_pred, Y_batch) # loss is a Tensor
@@ -50,7 +62,8 @@ class Trainer:
             total_loss += loss.data * batch_size
             total_samples += batch_size
             if accuracy_fn is not None:
-                total_correct += accuracy_fn(y_pred, Y_batch) * batch_size
+                predictions.append(y_pred.data)
+                targets.append(Y_batch.data)
             model.zero_grad()
             loss.backward()
             optimizer.step()
@@ -61,14 +74,15 @@ class Trainer:
         # running average across the epoch.
         avg_loss = total_loss / total_samples
         grad_norm = _gradient_norm(model)
-        avg_accuracy = (total_correct / total_samples) if accuracy_fn is not None else None
+        avg_accuracy = _whole_pass_metric(accuracy_fn, predictions, targets)
         return avg_loss, grad_norm, avg_accuracy
 
     def evaluate(self, model: Module, loss_fn: Loss, dataloader: DataLoader, accuracy_fn=None):
         """
         Forward-pass-only pass over dataloader: no zero_grad()/backward()/
         optimizer.step(), so it never mutates the model. Mirrors
-        _run_epoch's batch-weighted averaging. Used for a post-training
+        _run_epoch's batch-weighted loss averaging and whole-pass accuracy
+        metric. Used for a post-training
         test-set pass (orbit run, once test_split is set) and by the
         standalone `orbit test` command.
         """
@@ -77,8 +91,8 @@ class Trainer:
 
         model.eval()
         total_loss = 0.0
-        total_correct = 0.0
         total_samples = 0
+        predictions, targets = [], []
         for X_batch, Y_batch in dataloader:
             y_pred = model(X_batch)
             loss = loss_fn(y_pred, Y_batch)
@@ -86,11 +100,12 @@ class Trainer:
             total_loss += loss.data * batch_size
             total_samples += batch_size
             if accuracy_fn is not None:
-                total_correct += accuracy_fn(y_pred, Y_batch) * batch_size
+                predictions.append(y_pred.data)
+                targets.append(Y_batch.data)
         model.train()
 
         avg_loss = total_loss / total_samples
-        avg_accuracy = (total_correct / total_samples) if accuracy_fn is not None else None
+        avg_accuracy = _whole_pass_metric(accuracy_fn, predictions, targets)
         return avg_loss, avg_accuracy
 
     def _evaluate_with_progress_bar(
@@ -98,8 +113,8 @@ class Trainer:
     ):
         model.eval()
         total_loss = 0.0
-        total_correct = 0.0
         total_samples = 0
+        predictions, targets = [], []
         console.print()
         with Progress(
             TextColumn("[bold #ffeab0]Evaluating[/bold #ffeab0]"),
@@ -119,13 +134,14 @@ class Trainer:
                 total_loss += loss.data * batch_size
                 total_samples += batch_size
                 if accuracy_fn is not None:
-                    total_correct += accuracy_fn(y_pred, Y_batch) * batch_size
+                    predictions.append(y_pred.data)
+                    targets.append(Y_batch.data)
                 progress.update(task, advance=1, loss=total_loss / total_samples)
         console.print()
         model.train()
 
         avg_loss = total_loss / total_samples
-        avg_accuracy = (total_correct / total_samples) if accuracy_fn is not None else None
+        avg_accuracy = _whole_pass_metric(accuracy_fn, predictions, targets)
         return avg_loss, avg_accuracy
 
     def fit(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int,

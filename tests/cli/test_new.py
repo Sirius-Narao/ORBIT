@@ -288,3 +288,47 @@ def test_create_experiment_omits_task_when_not_tracked(tmp_path, monkeypatch):
         config = json.load(f)
 
     assert "task" not in config
+
+
+def test_create_experiment_prompts_for_tolerance_with_regression_tolerance(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+
+    fake_prompts(
+        monkeypatch,
+        # name, neurons, tolerance, learning_rate, batch_size, epochs, test_split, seed
+        texts=["xor_tol", "1", "0.25", "0.1", "", "10", "", ""],
+        selects=["xor", "Linear", "Done", "MSE", "regression_tolerance", "SGD", "none"],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert config["task"] == "regression_tolerance"
+    assert config["accuracy_tolerance"] == 0.25
+
+
+def test_create_experiment_regression_r2_does_not_prompt_for_tolerance(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+
+    # No tolerance answer in texts - an extra prompt would shift every later
+    # answer (learning_rate would get "10") or raise StopIteration.
+    fake_prompts(
+        monkeypatch,
+        texts=["xor_r2", "1", "0.1", "", "10", "", ""],
+        selects=["xor", "Linear", "Done", "MSE", "regression_r2", "SGD", "none"],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert config["task"] == "regression_r2"
+    assert config["learning_rate"] == 0.1
+    assert "accuracy_tolerance" not in config

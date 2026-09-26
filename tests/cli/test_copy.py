@@ -221,3 +221,24 @@ def test_copy_experiment_missing_source(tmp_path, capsys):
 
     assert result is None
     assert "was not found" in capsys.readouterr().out
+
+
+def test_copy_experiment_carries_accuracy_tolerance_with_task(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    config["task"] = "regression_tolerance"
+    config["accuracy_tolerance"] = 0.25
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", "1"])
+
+    copy_config_path = copy_experiment("source_exp", root=tmp_path)
+
+    with open(copy_config_path) as f:
+        copy_config = json.load(f)
+
+    assert copy_config["task"] == "regression_tolerance"
+    assert copy_config["accuracy_tolerance"] == 0.25

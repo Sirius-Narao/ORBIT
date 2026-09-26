@@ -1,3 +1,4 @@
+from orbit.core.metrics import format_metric
 from orbit.storage import EXPERIMENTS_ROOT, load_results
 from orbit.ui import console, warning
 from rich.table import Table
@@ -26,7 +27,7 @@ def list_experiments(root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
     table.add_column("Epochs")
     table.add_column("Duration")
     table.add_column("Grad Norm")
-    table.add_column("Final Accuracy")
+    table.add_column("Final Accuracy / R²")
     # table.add_column("Seed")
 
     for name in names:
@@ -35,7 +36,11 @@ def list_experiments(root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
             results = load_results(results_path)
             duration = f"{results.duration_seconds:.2f}s" if results.duration_seconds is not None else "-"
             grad_norm = f"{results.gradient_norm_history[-1]:.4f}" if results.gradient_norm_history else "-"
-            accuracy = f"{results.accuracy_history[-1] * 100:.2f}%" if results.accuracy_history else "-"
+            accuracy = (
+                format_metric(results.accuracy_history[-1], results.hyperparams.get("task"))
+                if results.accuracy_history
+                else "-"
+            )
             test_loss = f"{results.test_loss:.4f}" if results.test_loss is not None else "-"
             table.add_row(
                 name, "done", f"{results.final_loss:.4f}", test_loss, str(len(results.loss_history)),

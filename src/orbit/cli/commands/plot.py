@@ -21,10 +21,10 @@ from orbit.cli.commands.compare import _comparison_filename, COMPARISONS_ROOT
 # the two scalar test metrics.
 _METRIC_CHOICES = [
     ("Training loss", "loss"),
-    ("Accuracy", "accuracy"),
+    ("Accuracy / R²", "accuracy"),
     ("Gradient norm", "gradient_norm"),
     ("Test loss", "test_loss"),
-    ("Test accuracy", "test_accuracy"),
+    ("Test accuracy / R²", "test_accuracy"),
 ]
 _LABEL_TO_KEY = dict(_METRIC_CHOICES)
 _VALID_KEYS = set(_LABEL_TO_KEY.values())

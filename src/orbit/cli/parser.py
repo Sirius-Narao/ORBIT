@@ -16,6 +16,7 @@ from orbit.cli.commands.copy import copy_experiment
 from orbit.cli.commands.rename import rename_experiment
 from orbit.cli.commands.plotloss import plot_experiment
 from orbit.cli.commands.plot import plot_experiments
+from orbit.core.metrics import format_metric, metric_label
 from orbit.ui import console, success, warning
 
 # Below this relative improvement between the first and last epoch's loss,
@@ -44,6 +45,16 @@ def _warn_if_stalled(results) -> None:
             "this dataset, the learning rate may be too low, or it may "
             "need more epochs."
         )
+
+
+def _report_test_metrics(results) -> None:
+    if results.test_loss is not None:
+        success(f"Test loss: {results.test_loss}")
+    if results.test_accuracy is not None:
+        task = results.hyperparams.get("task")
+        label = metric_label(task)
+        name = "accuracy" if label == "Accuracy" else label
+        success(f"Test {name}: {format_metric(results.test_accuracy, task)}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -157,10 +168,7 @@ def _dispatch(args: argparse.Namespace) -> None:
             name = config_path.parent.name
         results = run_experiment(name)
         success(f"Final loss: {results.final_loss}")
-        if results.test_loss is not None:
-            success(f"Test loss: {results.test_loss}")
-            if results.test_accuracy is not None:
-                success(f"Test accuracy: {results.test_accuracy:.2%}")
+        _report_test_metrics(results)
         _warn_if_stalled(results)
         console.print()
     elif args.command == "train":
@@ -171,10 +179,7 @@ def _dispatch(args: argparse.Namespace) -> None:
     elif args.command == "test":
         results = test_experiment(args.name)
         if results is not None:
-            if results.test_loss is not None:
-                success(f"Test loss: {results.test_loss}")
-            if results.test_accuracy is not None:
-                success(f"Test accuracy: {results.test_accuracy:.2%}")
+            _report_test_metrics(results)
             console.print()
     elif args.command == "inspect":
         inspect_experiment(args.name)

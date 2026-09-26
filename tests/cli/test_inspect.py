@@ -182,3 +182,27 @@ def test_inspect_experiment_missing_name(tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert "was not found" in out
+
+
+def test_inspect_experiment_shows_r2_as_a_plain_number(tmp_path, capsys):
+    exp_dir = write_config(tmp_path, "r2_test", epochs=3)
+    results_dir = exp_dir / "results"
+    results_dir.mkdir(parents=True)
+    results = Results(
+        name="r2_test",
+        final_loss=0.1,
+        loss_history=[0.5, 0.3, 0.1],
+        hyperparams={"task": "regression_r2"},
+        accuracy_history=[0.2, 0.6, 0.8123],
+        test_loss=0.2,
+        test_accuracy=-0.25,
+    )
+    with open(results_dir / "results.json", "w") as f:
+        json.dump(results.to_dict(), f)
+
+    inspect_experiment("r2_test", root=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "final R² 0.8123" in out
+    assert "test R² -0.2500" in out
+    assert "%" not in out.split("Results:")[1]

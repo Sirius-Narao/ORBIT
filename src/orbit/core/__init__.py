@@ -10,7 +10,14 @@ from orbit.core.dataset import (
 )
 from orbit.core.dataloader import DataLoader
 from orbit.core.results import Results
-from orbit.core.metrics import accuracy, accuracy_multiclass
+from orbit.core.metrics import (
+    accuracy,
+    accuracy_multiclass,
+    regression_tolerance,
+    r2_score,
+    metric_label,
+    format_metric,
+)
 from orbit.core.config import load_experiment
 # from orbit.core.autograd import accumulate_gradient, build_topological_order, backward
 
@@ -28,5 +35,9 @@ __all__ = [
     "Results",
     "accuracy",
     "accuracy_multiclass",
+    "regression_tolerance",
+    "r2_score",
+    "metric_label",
+    "format_metric",
     "load_experiment"
 ]

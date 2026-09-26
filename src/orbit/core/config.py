@@ -11,7 +11,9 @@ from orbit.core import (
     fit_normalizer,
 )
 from orbit.core.experiment import Experiment
-from orbit.core.metrics import accuracy, accuracy_multiclass
+import functools
+
+from orbit.core.metrics import accuracy, accuracy_multiclass, regression_tolerance, r2_score
 from orbit.nn import Sequential
 from orbit.nn.layers import Linear
 from orbit.nn.activations import ReLU, Tanh, Sigmoid, Softmax
@@ -154,13 +156,22 @@ def build_optimizer(name: str, parameters, lr: float):
 TASK_REGISTRY = {
     "binary_classification": accuracy,
     "multiclass_classification": accuracy_multiclass,
+    "regression_tolerance": regression_tolerance,
+    "regression_r2": r2_score,
 }
 
-def build_accuracy_fn(task: Optional[str]):
+DEFAULT_ACCURACY_TOLERANCE = 0.5
+
+def build_accuracy_fn(task: Optional[str], tolerance: Optional[float] = None):
     if task is None:
         return None
     if task not in TASK_REGISTRY:
         raise ValueError(f"Unknown task: {task!r}")
+    if task == "regression_tolerance":
+        return functools.partial(
+            regression_tolerance,
+            tolerance=tolerance if tolerance is not None else DEFAULT_ACCURACY_TOLERANCE,
+        )
     return TASK_REGISTRY[task]
 
 # --- top-level loader -------------------------------------------------------
@@ -219,7 +230,13 @@ def load_experiment(config: dict) -> Experiment:
         if test_dataset is not None
         else None
     )
-    accuracy_fn = build_accuracy_fn(config.get("task"))
+    task = config.get("task")
+    accuracy_fn = build_accuracy_fn(task, config.get("accuracy_tolerance"))
+    accuracy_tolerance = (
+        config.get("accuracy_tolerance", DEFAULT_ACCURACY_TOLERANCE)
+        if task == "regression_tolerance"
+        else None
+    )
 
     return Experiment(
         model,
@@ -232,6 +249,8 @@ def load_experiment(config: dict) -> Experiment:
         log_every=100,
         accuracy_fn=accuracy_fn,
         test_dataloader=test_dataloader,
+        task=task,
+        accuracy_tolerance=accuracy_tolerance,
     )
 
 if __name__ == "__main__":
