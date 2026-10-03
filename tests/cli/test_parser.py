@@ -337,7 +337,7 @@ def test_compare_dispatches_with_plotloss_flag(monkeypatch):
     monkeypatch.setattr(
         parser_module,
         "compare_experiments",
-        lambda names, is_all=False, plot_loss=False, log_scale=False, by=None: calls.append(
+        lambda names, is_all=False, plot_loss=False, log_scale=False, by=None, test_only=False: calls.append(
             (names, is_all, plot_loss, log_scale)
         ),
     )
@@ -353,7 +353,7 @@ def test_compare_dispatches_with_plotloss_and_logscale_flags(monkeypatch):
     monkeypatch.setattr(
         parser_module,
         "compare_experiments",
-        lambda names, is_all=False, plot_loss=False, log_scale=False, by=None: calls.append(
+        lambda names, is_all=False, plot_loss=False, log_scale=False, by=None, test_only=False: calls.append(
             (names, is_all, plot_loss, log_scale)
         ),
     )
@@ -425,15 +425,16 @@ def test_run_reports_test_r2_as_a_plain_number(monkeypatch, capsys):
         (["create", "sw", "--base", "b"], "create_sweep", (("sw", "b"), {})),
         (["start", "sw"], "start_sweep", (("sw",), {})),
         (["status", "sw"], "sweep_status", (("sw",), {})),
-        (["compare", "sw", "--by", "test_loss"], "compare_sweep", (("sw",), {"by": ["test_loss"], "all_metrics": False})),
+        (["compare", "sw", "--by", "test_loss"], "compare_sweep", (("sw",), {"by": ["test_loss"], "all_metrics": False, "test_only": False})),
         (
             ["compare", "sw", "--by", "test_loss", "test_accuracy"],
             "compare_sweep",
-            (("sw",), {"by": ["test_loss", "test_accuracy"], "all_metrics": False}),
+            (("sw",), {"by": ["test_loss", "test_accuracy"], "all_metrics": False, "test_only": False}),
         ),
-        (["compare", "sw", "--by"], "compare_sweep", (("sw",), {"by": [], "all_metrics": False})),
-        (["compare", "sw"], "compare_sweep", (("sw",), {"by": None, "all_metrics": False})),
-        (["compare", "sw", "--all"], "compare_sweep", (("sw",), {"by": None, "all_metrics": True})),
+        (["compare", "sw", "--by"], "compare_sweep", (("sw",), {"by": [], "all_metrics": False, "test_only": False})),
+        (["compare", "sw"], "compare_sweep", (("sw",), {"by": None, "all_metrics": False, "test_only": False})),
+        (["compare", "sw", "--all"], "compare_sweep", (("sw",), {"by": None, "all_metrics": True, "test_only": False})),
+        (["compare", "sw", "--test"], "compare_sweep", (("sw",), {"by": None, "all_metrics": False, "test_only": True})),
         (["export", "sw", "--output", "x.csv"], "export_sweep", (("sw",), {"output": "x.csv"})),
         (
             ["plot", "sw", "--logscale", "--metrics", "loss"],
@@ -500,3 +501,31 @@ def test_sweep_delete_dispatches(monkeypatch, argv, expected_yes):
     parser_module.main()
 
     assert calls == [(("sw",), {"yes": expected_yes})]
+
+
+def test_compare_dispatches_test_flag(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parser_module, "compare_experiments", lambda *a, **k: calls.append(k))
+    monkeypatch.setattr("sys.argv", ["orbit", "compare", "--all", "--test"])
+
+    parser_module.main()
+
+    assert calls[0]["test_only"] is True
+    assert calls[0]["by"] is None
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["compare", "--all", "--test", "--by", "test_loss"],
+        ["sweep", "compare", "sw", "--test", "--by", "test_loss"],
+        ["sweep", "compare", "sw", "--test", "--all"],
+    ],
+)
+def test_test_flag_is_exclusive_with_by_and_all(monkeypatch, capsys, argv):
+    monkeypatch.setattr("sys.argv", ["orbit", *argv])
+
+    with pytest.raises(SystemExit):
+        parser_module.main()
+
+    assert "not allowed with argument" in capsys.readouterr().err

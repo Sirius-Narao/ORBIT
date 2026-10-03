@@ -16,7 +16,7 @@ from rich.text import Text
 
 from orbit.core.metrics import format_metric, metric_label
 from orbit.core.ranking import RANK_METRICS, usable_metrics
-from orbit.ui import PROMPT_STYLE, console, success, warning
+from orbit.ui import PROMPT_STYLE, console, info, success, warning
 
 OVERALL_BEST_STYLE = "bold #b0ffb3"
 BEST_MARK = " ★"
@@ -88,6 +88,29 @@ def choose_metrics(by: Optional[list], default: Optional[list]) -> Optional[list
     return [labels[label] for label in chosen] if chosen else None
 
 
+# What --test ranks by: the held-out metrics only, i.e. how well each model
+# generalizes, ignoring how well it fit its own training data.
+TEST_METRICS = ["test_loss", "test_accuracy"]
+
+
+def test_metrics_for(rows: List[dict]) -> List[str]:
+    """
+    The TEST_METRICS at least one row recorded (test_accuracy needs a task,
+    test_loss only a test split). Ones nobody has are skipped quietly, as
+    with sweep compare --all; if there are none at all, warn how to get them.
+    """
+    metrics = usable_metrics(rows, TEST_METRICS)[0]
+    if metrics:
+        info(f"Ranking by test metrics only: {', '.join(metrics)}")
+    else:
+        warning(
+            "No test metrics recorded - give the experiment(s) a test split "
+            "(\"test_split\", e.g. via orbit new / orbit copy) and run them, "
+            "or run `orbit test <name>` on already-trained ones."
+        )
+    return metrics
+
+
 def drop_unusable(rows: List[dict], metrics: List[str]) -> List[str]:
     """Warn about and drop metrics that no row has a value for."""
     usable, unusable = usable_metrics(rows, metrics)
@@ -131,7 +154,7 @@ def print_bests(ranking: List[dict], metrics: List[str], name_key: str, describe
             value = format_value(winners[0].get(metric), metric, winners[0].get("task"))
             names = ", ".join(w[name_key] for w in winners)
             console.print(
-                f"Best {metric_name(metric, winners[0].get('task'))}{BEST_MARK}: {names} - {value}",
+                f"Best {metric_name(metric, winners[0].get('task'))}{BEST_MARK} : {names} - {value}",
                 style=METRIC_COLORS[metric],
             )
 

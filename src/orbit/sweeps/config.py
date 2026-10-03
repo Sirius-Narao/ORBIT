@@ -9,7 +9,7 @@ SWEEPS_ROOT = pathlib.Path(".orbits/sweeps")
 # Top-level experiment.json fields a sweep can vary, mapped to how their
 # values are entered/parsed: "float"/"int" are typed as comma-separated
 # numbers, a list is a fixed set of choices. The model architecture is
-# deliberately not sweepable in v1.
+# swept through the virtual architecture fields below.
 SWEEPABLE_FIELDS = {
     "learning_rate": "float",
     "optimizer": list(OPTIMIZER_REGISTRY),
@@ -19,7 +19,22 @@ SWEEPABLE_FIELDS = {
     "seed": "int",
     "normalize": ["none"] + list(NORMALIZE_METHODS),
     "test_split": "float",
+    # Architecture (see ARCHITECTURE_FIELDS below)
+    "hidden_width": "int",
+    "hidden_depth": "int",
+    "activation": ["ReLU", "Tanh", "Sigmoid"],
 }
+
+# The SWEEPABLE_FIELDS that are virtual: not experiment.json keys, but
+# instructions for rebuilding its "model" list as hidden_depth hidden
+# Linear(hidden_width) layers with the given activation, followed by the
+# base model's own output head (sweeps/generator.py's apply_architecture).
+# Softmax isn't offered as an activation - it's an output activation.
+ARCHITECTURE_FIELDS = ("hidden_width", "hidden_depth", "activation")
+
+# Smallest allowed value per int field: a hidden layer needs at least one
+# unit, while depth 0 (no hidden layer - a linear model) is valid.
+FIELD_MINIMUMS = {"hidden_width": 1, "hidden_depth": 0, "batch_size": 1, "epochs": 1}
 
 
 def sweep_dir(name: str, root: pathlib.Path = SWEEPS_ROOT) -> pathlib.Path:

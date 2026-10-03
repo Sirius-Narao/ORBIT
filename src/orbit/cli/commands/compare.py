@@ -14,6 +14,7 @@ from orbit.cli.commands.ranking_display import (
     metric_cell,
     print_bests,
     ranking_title,
+    test_metrics_for,
 )
 from orbit.core.ranking import RANK_METRICS, overall_ranking
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
@@ -44,6 +45,7 @@ def compare_experiments(
     root: pathlib.Path = EXPERIMENTS_ROOT,
     comparisons_root: pathlib.Path = COMPARISONS_ROOT,
     by: Optional[list] = None,
+    test_only: bool = False,
 ) -> Optional[list]:
     """
     Print a table of the experiments' configs and results. With by (a list
@@ -51,10 +53,14 @@ def compare_experiments(
     ranked: several metrics combine by average rank (core/ranking.py), the
     overall best row is green, and each metric's best value gets its own
     color (see ranking_display.py). Without by, no ranking - the table is
-    in the order given, as before ranking existed.
+    in the order given, as before ranking existed. test_only (--test) ranks
+    by the test metrics alone (ranking_display.TEST_METRICS).
 
     Returns the ranked rows (best first) when ranking, else None.
     """
+    if test_only and by is not None:
+        raise ValueError("Pass either by or test_only, not both")
+
     if is_all:
         if not root.exists():
             console.print()
@@ -105,11 +111,14 @@ def compare_experiments(
         console.print()
         return None
 
-    metrics = choose_metrics(by, default=None)
-    if by is not None and not metrics:
-        warning("No metrics selected - showing the comparison without ranking.")
-    if metrics:
-        metrics = drop_unusable(rows, metrics)
+    if test_only:
+        metrics = test_metrics_for(rows)
+    else:
+        metrics = choose_metrics(by, default=None)
+        if by is not None and not metrics:
+            warning("No metrics selected - showing the comparison without ranking.")
+        if metrics:
+            metrics = drop_unusable(rows, metrics)
 
     ranked_rows = None
     if metrics:

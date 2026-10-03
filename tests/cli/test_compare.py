@@ -272,9 +272,9 @@ def test_compare_by_several_metrics_ranks_by_average_rank(tmp_path, capsys):
 
     assert [r["name"] for r in ranked] == ["exp_b", "exp_a", "exp_c"]
     assert "Best run overall: exp_b - average rank 1.333" in out
-    assert "Best Test Loss ★: exp_a - 0.1" in out
-    assert "Best Test Accuracy ★: exp_b - 90.00%" in out
-    assert "Best Duration ★: exp_b - 1.00s" in out
+    assert "Best Test Loss ★ : exp_a - 0.1" in out
+    assert "Best Test Accuracy ★ : exp_b - 90.00%" in out
+    assert "Best Duration ★ : exp_b - 1.00s" in out
     assert "Avg Rank" in out
 
 
@@ -327,3 +327,55 @@ def test_compare_bare_by_prompts_for_metrics(tmp_path, monkeypatch, capsys):
 
     # exp_a: ranks 1, 3 -> 2.0   exp_b: 2, 1 -> 1.5   exp_c: 3, 2 -> 2.5
     assert [r["name"] for r in ranked] == ["exp_b", "exp_a", "exp_c"]
+
+
+# --- --test ----------------------------------------------------------------------
+
+def test_compare_test_only_ranks_by_test_metrics_and_ignores_training_fit(tmp_path, capsys):
+    """
+    exp_a fits its training data best (final_loss 0.05) but exp_b
+    generalizes best; --test ranks on test metrics alone:
+               test_loss  test_accuracy   ranks   avg
+      exp_a      0.10        0.80         1, 2    1.5
+      exp_b      0.20        0.90         2, 1    1.5   (tie -> test_loss decides: exp_a)
+      exp_c      0.30        0.70         3, 3    3.0
+    """
+    _three_experiments(tmp_path)
+
+    ranked = compare_experiments(is_all=True, root=tmp_path, test_only=True)
+    out = capsys.readouterr().out
+
+    assert "Ranking by test metrics only: test_loss, test_accuracy" in out
+    assert "ranked by average rank over test_loss, test_accuracy" in out
+    assert "Final Loss" not in out.split("Best run")[0].split("ranked by")[1]  # not a ranked column
+    assert [r["name"] for r in ranked] == ["exp_a", "exp_b", "exp_c"]
+
+
+def test_compare_test_only_uses_whichever_test_metrics_exist(tmp_path, capsys):
+    write_ranked(tmp_path, "exp_a", 0.05, test_loss=0.3)
+    write_ranked(tmp_path, "exp_b", 0.06, test_loss=0.2)
+
+    ranked = compare_experiments(is_all=True, root=tmp_path, test_only=True)
+    out = capsys.readouterr().out
+
+    assert "Ranking by test metrics only: test_loss" in out
+    assert "not ranking by it" not in out
+    assert [r["name"] for r in ranked] == ["exp_b", "exp_a"]
+
+
+def test_compare_test_only_without_test_metrics_warns_and_shows_plain_table(tmp_path, capsys):
+    write_ranked(tmp_path, "exp_a", 0.05)
+
+    assert compare_experiments(is_all=True, root=tmp_path, test_only=True) is None
+    out = capsys.readouterr().out
+
+    assert "No test metrics recorded" in out
+    assert "orbit test" in out
+    assert "exp_a" in out
+
+
+def test_compare_rejects_by_together_with_test_only(tmp_path):
+    import pytest
+
+    with pytest.raises(ValueError):
+        compare_experiments(is_all=True, root=tmp_path, by=["test_loss"], test_only=True)

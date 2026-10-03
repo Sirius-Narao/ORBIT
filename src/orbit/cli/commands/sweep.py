@@ -24,6 +24,7 @@ from orbit.cli.commands.ranking_display import (
     metric_name,
     print_bests,
     ranking_title,
+    test_metrics_for,
 )
 from orbit.core.ranking import RANK_METRICS, overall_ranking, usable_metrics
 from orbit.sweeps.aggregator import (
@@ -33,6 +34,8 @@ from orbit.sweeps.aggregator import (
     varies_seed,
 )
 from orbit.sweeps.config import (
+    ARCHITECTURE_FIELDS,
+    FIELD_MINIMUMS,
     SWEEPABLE_FIELDS,
     SWEEPS_ROOT,
     load_sweep,
@@ -40,7 +43,7 @@ from orbit.sweeps.config import (
     sweep_dir,
     sweep_exists,
 )
-from orbit.sweeps.generator import expand_grid
+from orbit.sweeps.generator import describe_architecture, expand_grid
 from orbit.ui import PROMPT_STYLE, console, info, success, warning
 
 _EXPORT_METRICS = ["final_loss", "test_loss", "test_accuracy", "duration_seconds"]
@@ -61,20 +64,36 @@ def _parse_number_list(text: str, kind: str) -> list:
     return [cast(part.strip()) for part in text.split(",") if part.strip()]
 
 
+def _base_value(field: str, base_config: dict):
+    """
+    The base experiment's own value for a field - pre-fills its prompt.
+    Architecture fields aren't config keys, so they're read off the model.
+    """
+    if field in ARCHITECTURE_FIELDS:
+        return describe_architecture(base_config["model"])[field]
+    return base_config.get(field, "none" if field == "normalize" else None)
+
+
 def _ask_values(field: str, kind, base_config: dict) -> list:
+    default = _base_value(field, base_config)
     if isinstance(kind, list):
-        default = base_config.get(field, "none" if field == "normalize" else None)
         choices = [questionary.Choice(c, checked=(c == default)) for c in kind]
         return questionary.checkbox(f"{field} values:", choices=choices, style=PROMPT_STYLE).ask()
+
+    minimum = FIELD_MINIMUMS.get(field)
 
     def validate(text):
         try:
             values = _parse_number_list(text, kind)
         except ValueError:
             return f"Please enter comma-separated {'whole numbers' if kind == 'int' else 'numbers'}"
-        return bool(values) or "Please enter at least one value"
+        if not values:
+            return "Please enter at least one value"
+        if minimum is not None and any(v < minimum for v in values):
+            return f"{field} values must be at least {minimum}"
+        return True
 
-    default = str(base_config[field]) if field in base_config else ""
+    default = "" if default is None else str(default)
     answer = questionary.text(
         f"{field} values (comma-separated):", default=default, validate=validate, style=PROMPT_STYLE
     ).ask()
@@ -135,7 +154,11 @@ def create_sweep(
             return None
         grid[field] = values
 
-    runs = expand_grid(name, base_config, grid)
+    try:
+        runs = expand_grid(name, base_config, grid)
+    except ValueError as e:
+        warning(f"Can't build this grid: {e}")
+        return None
 
     table = Table(title=f"Sweep {name!r} (base: {base})", show_header=False)
     table.add_column("Field", style="bold")
@@ -150,6 +173,11 @@ def create_sweep(
             f"All runs share seed {base_config.get('seed', 'none')} - differences come only "
             "from the varied fields."
         )
+    varied_architecture = [f for f in ARCHITECTURE_FIELDS if f in grid]
+    if varied_architecture:
+        for field in ARCHITECTURE_FIELDS:
+            if field not in grid:
+                info(f"{field} not varied: all runs use the base model's {field} ({_base_value(field, base_config)}).")
     console.print()
 
     taken = [run_name for run_name, _, _ in runs if experiment_dir(run_name, root=root).exists()]
@@ -268,6 +296,7 @@ def compare_sweep(
     name: str,
     by: Optional[list] = None,
     all_metrics: bool = False,
+    test_only: bool = False,
     root: pathlib.Path = EXPERIMENTS_ROOT,
     sweeps_root: pathlib.Path = SWEEPS_ROOT,
 ) -> Optional[list]:
@@ -275,7 +304,8 @@ def compare_sweep(
     Rank the sweep's runs by one or several metrics (default: test loss
     when the sweep has a test split, else final loss; a bare --by prompts;
     all_metrics / --all ranks by every quality metric the runs recorded -
-    everything but duration, see _ALL_METRICS).
+    everything but duration, see _ALL_METRICS; test_only / --test ranks by
+    the test metrics alone, ranking_display.TEST_METRICS).
     Several metrics are combined by average rank (core/ranking.py): the
     overall best row is green, and each metric's best value gets its own
     color (see ranking_display.py). When the grid varies the seed, groups
@@ -284,15 +314,20 @@ def compare_sweep(
 
     Returns the ranked rows, best first.
     """
-    if all_metrics and by is not None:
-        raise ValueError("Pass either by or all_metrics, not both")
+    if sum([by is not None, all_metrics, test_only]) > 1:
+        raise ValueError("Pass only one of by, all_metrics and test_only")
 
     sweep = _load_or_warn(name, sweeps_root)
     if sweep is None:
         return None
 
     rows = collect_rows(sweep, root)
-    if all_metrics:
+    if test_only:
+        metrics = test_metrics_for(rows)
+        if not metrics:
+            console.print()
+            return [row for row in rows]
+    elif all_metrics:
         # Every quality metric any run recorded (see _ALL_METRICS). Ones
         # nobody has (e.g. test metrics without a test split, accuracy
         # without a task) are skipped quietly - they weren't asked for by

@@ -455,3 +455,147 @@ def test_compare_sweep_by_duration_still_works(monkeypatch, roots, capsys):
     durations = [r["duration_seconds"] for r in ranked]
     assert durations == sorted(durations)
     assert "ranked by duration_seconds" in capsys.readouterr().out
+
+
+# --- architecture sweeps -------------------------------------------------------------
+
+def test_create_architecture_sweep_prefills_from_the_base_model(monkeypatch, roots):
+    write_base(roots["root"])  # 2 -> 4 -> Tanh -> 1 -> Sigmoid
+
+    seen = []
+    texts = iter(["2, 8", "1,2"])
+    checkboxes = iter([["hidden_width", "hidden_depth", "activation"], ["Tanh", "ReLU"]])
+
+    def fake_text(message, *a, **k):
+        seen.append((message, k.get("default")))
+        return FakeAnswer(next(texts))
+
+    def fake_checkbox(message, *a, **k):
+        seen.append((message, [c.title for c in k.get("choices", []) if getattr(c, "checked", False)]))
+        return FakeAnswer(next(checkboxes))
+
+    monkeypatch.setattr(questionary, "text", fake_text)
+    monkeypatch.setattr(questionary, "checkbox", fake_checkbox)
+    monkeypatch.setattr(questionary, "confirm", lambda *a, **k: FakeAnswer(True))
+
+    create_sweep("arch", "base_exp", **roots)
+
+    assert ("hidden_width values (comma-separated):", "4") in seen
+    assert ("hidden_depth values (comma-separated):", "1") in seen
+    assert ("activation values:", ["Tanh"]) in seen
+
+    sweep = load_sweep("arch", roots["sweeps_root"])
+    assert len(sweep["runs"]) == 8  # 2 widths x 2 depths x 2 activations
+    with open(roots["root"] / "arch_008" / "experiment.json") as f:
+        config = json.load(f)
+    assert config["model"] == [
+        {"type": "Linear", "in_features": 2, "neurons": 8},
+        {"type": "ReLU"},
+        {"type": "Linear", "neurons": 8},
+        {"type": "ReLU"},
+        {"type": "Linear", "neurons": 1},
+        {"type": "Sigmoid"},
+    ]
+
+
+def test_create_rejects_hidden_width_below_one(monkeypatch, roots):
+    write_base(roots["root"])
+    validators = []
+
+    def fake_text(message, *a, **k):
+        validators.append(k["validate"])
+        return FakeAnswer("4")
+
+    monkeypatch.setattr(questionary, "checkbox", lambda *a, **k: FakeAnswer(["hidden_width"]))
+    monkeypatch.setattr(questionary, "text", fake_text)
+    monkeypatch.setattr(questionary, "confirm", lambda *a, **k: FakeAnswer(False))
+
+    create_sweep("arch", "base_exp", **roots)
+
+    validate = validators[0]
+    assert validate("0, 4") == "hidden_width values must be at least 1"
+    assert validate("1, 4") is True
+
+
+def test_create_allows_hidden_depth_zero(monkeypatch, roots):
+    write_base(roots["root"])
+    validators = []
+
+    def fake_text(message, *a, **k):
+        validators.append(k["validate"])
+        return FakeAnswer("0,1")
+
+    monkeypatch.setattr(questionary, "checkbox", lambda *a, **k: FakeAnswer(["hidden_depth"]))
+    monkeypatch.setattr(questionary, "text", fake_text)
+    monkeypatch.setattr(questionary, "confirm", lambda *a, **k: FakeAnswer(False))
+
+    create_sweep("arch", "base_exp", **roots)
+
+    assert validators[0]("0, 1") is True
+    assert validators[0]("-1") == "hidden_depth values must be at least 0"
+
+
+def test_create_reports_an_unbuildable_grid_and_writes_nothing(monkeypatch, roots, capsys):
+    write_base(roots["root"], model=[{"type": "Linear", "in_features": 2, "neurons": 1}, {"type": "Sigmoid"}])
+    fake_prompts(monkeypatch, checkboxes=[["hidden_depth"]], texts=["1,2"])
+
+    assert create_sweep("arch", "base_exp", **roots) is None
+
+    assert "also vary hidden_width" in capsys.readouterr().out
+    assert not (roots["sweeps_root"] / "arch").exists()
+
+
+def test_architecture_sweep_trains_and_compares(monkeypatch, roots, capsys):
+    write_base(roots["root"])
+    fake_prompts(monkeypatch, checkboxes=[["hidden_width", "hidden_depth"]], texts=["2,4", "0,1,2"])
+    create_sweep("arch", "base_exp", **roots)
+    capsys.readouterr()
+
+    counts = start_sweep("arch", **roots)
+    assert counts["done"] == 5  # depth 0 once + 2 widths x 2 depths
+    assert counts["failed"] == 0
+
+    compare_sweep("arch", **roots)
+    out = capsys.readouterr().out
+    assert "hidden_width" in out and "hidden_depth" in out
+
+
+# --- --test ----------------------------------------------------------------------
+
+def test_compare_sweep_test_only(monkeypatch, roots, capsys):
+    write_base(roots["root"], test_split=0.25, task="binary_classification")
+    create_lr_seed_sweep(monkeypatch, roots)
+    start_sweep("sw", **roots)
+    capsys.readouterr()
+
+    ranked = compare_sweep("sw", test_only=True, **roots)
+    out = capsys.readouterr().out
+
+    assert "Ranking by test metrics only: test_loss, test_accuracy" in out
+    assert "ranked by average rank over test_loss, test_accuracy" in out
+    assert "Best Final Loss" not in out
+    assert "Best Test Loss ★" in out
+
+    from orbit.core.ranking import overall_ranking
+    expected = [e["row"]["run"] for e in overall_ranking(ranked, ["test_loss", "test_accuracy"])]
+    assert [r["run"] for r in ranked] == expected
+
+
+def test_compare_sweep_test_only_without_a_test_split_warns(monkeypatch, roots, capsys):
+    write_base(roots["root"])
+    create_lr_seed_sweep(monkeypatch, roots)
+    start_sweep("sw", **roots)
+    capsys.readouterr()
+
+    compare_sweep("sw", test_only=True, **roots)
+    out = capsys.readouterr().out
+
+    assert "No test metrics recorded" in out
+    assert "ranked by" not in out
+
+
+def test_compare_sweep_rejects_combined_metric_options(roots):
+    with pytest.raises(ValueError):
+        compare_sweep("sw", test_only=True, all_metrics=True, **roots)
+    with pytest.raises(ValueError):
+        compare_sweep("sw", test_only=True, by=["final_loss"], **roots)

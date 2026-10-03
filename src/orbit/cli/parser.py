@@ -73,6 +73,9 @@ _BY_HELP = (
 )
 
 
+_TEST_HELP = "Rank by the test metrics only (test_loss, test_accuracy - whichever were recorded)"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="orbit")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -124,10 +127,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--logscale", action="store_true",
         help="Use a log-scale y-axis for --plotloss (helps see small changes late in training)",
     )
-    compare_parser.add_argument(
+    compare_metrics = compare_parser.add_mutually_exclusive_group()
+    compare_metrics.add_argument(
         "--by", nargs="*", choices=list(RANK_METRICS), metavar="METRIC",
         help=_BY_HELP + " (default: no ranking)",
     )
+    compare_metrics.add_argument("--test", action="store_true", help=_TEST_HELP)
 
     # Reproduce command:
     reproduce_parser = subparsers.add_parser("reproduce", help="Re-run a saved experiment and check the result matches")
@@ -193,6 +198,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--all", action="store_true", dest="all_metrics",
         help="Rank by every quality metric the sweep's runs recorded (all but duration_seconds)",
     )
+    sweep_compare_metrics.add_argument("--test", action="store_true", help=_TEST_HELP)
 
     sweep_export_parser = sweep_subparsers.add_parser("export", help="Export every run's params and metrics to CSV")
     sweep_export_parser.add_argument("name", help="Name of the sweep")
@@ -260,7 +266,8 @@ def _dispatch(args: argparse.Namespace) -> None:
         inspect_experiment(args.name)
     elif args.command == "compare":
         compare_experiments(
-            args.names, is_all=args.all, plot_loss=args.plotloss, log_scale=args.logscale, by=args.by
+            args.names, is_all=args.all, plot_loss=args.plotloss, log_scale=args.logscale, by=args.by,
+            test_only=args.test,
         )
     elif args.command == "reproduce":
         reproduce_experiment(args.name)
@@ -286,7 +293,7 @@ def _dispatch_sweep(args: argparse.Namespace) -> None:
     elif args.sweep_command == "status":
         sweep_status(args.name)
     elif args.sweep_command == "compare":
-        compare_sweep(args.name, by=args.by, all_metrics=args.all_metrics)
+        compare_sweep(args.name, by=args.by, all_metrics=args.all_metrics, test_only=args.test)
     elif args.sweep_command == "export":
         export_sweep(args.name, output=args.output)
     elif args.sweep_command == "plot":
