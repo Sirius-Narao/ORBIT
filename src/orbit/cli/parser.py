@@ -23,6 +23,7 @@ from orbit.cli.commands.sweep import (
     compare_sweep,
     export_sweep,
     plot_sweep,
+    delete_sweep,
 )
 from orbit.core.ranking import RANK_METRICS
 from orbit.core.metrics import format_metric, metric_label
@@ -84,6 +85,9 @@ def build_parser() -> argparse.ArgumentParser:
     
     # List command
     list_parser = subparsers.add_parser("list", help="List all experiments and their results")
+    list_parser.add_argument(
+        "--runs", action="store_true", help="Also list sweep runs individually (hidden by default)"
+    )
 
     # Run command
     run_parser = subparsers.add_parser("run", help="Run a saved experiment, or configure a new one and run it")
@@ -187,7 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sweep_compare_metrics.add_argument(
         "--all", action="store_true", dest="all_metrics",
-        help="Rank by every metric the sweep's runs recorded (" + ", ".join(RANK_METRICS) + ")",
+        help="Rank by every quality metric the sweep's runs recorded (all but duration_seconds)",
     )
 
     sweep_export_parser = sweep_subparsers.add_parser("export", help="Export every run's params and metrics to CSV")
@@ -206,6 +210,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Metric(s) to plot (default: prompted interactively)",
     )
 
+    sweep_delete_parser = sweep_subparsers.add_parser(
+        "delete", help="Delete a sweep and every run in it (asks first)"
+    )
+    sweep_delete_parser.add_argument("name", help="Name of the sweep")
+    sweep_delete_parser.add_argument("--yes", action="store_true", help="Delete without asking")
+
     # Import command
     import_parser = subparsers.add_parser("import", help="Import a CSV file as a named dataset")
     import_parser.add_argument("csv_path", help="Path to the CSV file to import")
@@ -223,7 +233,7 @@ def _dispatch(args: argparse.Namespace) -> None:
     elif args.command == "new":
         create_experiment()
     elif args.command == "list":
-        list_experiments()
+        list_experiments(show_runs=args.runs)
     elif args.command == "delete":
         delete_experiments(args.name, is_all=args.all)
     elif args.command == "run":
@@ -281,6 +291,8 @@ def _dispatch_sweep(args: argparse.Namespace) -> None:
         export_sweep(args.name, output=args.output)
     elif args.sweep_command == "plot":
         plot_sweep(args.name, log_scale=args.logscale, metrics=args.metrics)
+    elif args.sweep_command == "delete":
+        delete_sweep(args.name, yes=args.yes)
 
 
 def main() -> None:

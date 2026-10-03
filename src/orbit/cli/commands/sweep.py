@@ -1,6 +1,7 @@
 import csv
 import json
 import pathlib
+import shutil
 from typing import List, Optional
 
 import questionary
@@ -45,6 +46,12 @@ from orbit.ui import PROMPT_STYLE, console, info, success, warning
 _EXPORT_METRICS = ["final_loss", "test_loss", "test_accuracy", "duration_seconds"]
 # Shown in `sweep compare` for context even when not ranked by.
 _CONTEXT_METRICS = ["final_loss", "test_loss", "test_accuracy"]
+# What `sweep compare --all` ranks by: every quality metric, but not
+# duration_seconds. On small/fast runs durations differ only by timing
+# noise (milliseconds), and under average-rank aggregation that noise gets
+# an equal vote - it pushed the lowest-loss run of a test sweep from 1st to
+# 5th. Duration stays available explicitly via --by ... duration_seconds.
+_ALL_METRICS = [m for m in RANK_METRICS if m != "duration_seconds"]
 
 
 # --- helpers -------------------------------------------------------------------
@@ -267,7 +274,8 @@ def compare_sweep(
     """
     Rank the sweep's runs by one or several metrics (default: test loss
     when the sweep has a test split, else final loss; a bare --by prompts;
-    all_metrics / --all ranks by every metric the runs recorded).
+    all_metrics / --all ranks by every quality metric the runs recorded -
+    everything but duration, see _ALL_METRICS).
     Several metrics are combined by average rank (core/ranking.py): the
     overall best row is green, and each metric's best value gets its own
     color (see ranking_display.py). When the grid varies the seed, groups
@@ -285,12 +293,13 @@ def compare_sweep(
 
     rows = collect_rows(sweep, root)
     if all_metrics:
-        # Every metric any run recorded. Ones nobody has (e.g. test metrics
-        # without a test split, accuracy without a task) are skipped quietly -
-        # they weren't asked for by name, so there's nothing to warn about.
-        metrics = usable_metrics(rows, list(RANK_METRICS))[0]
+        # Every quality metric any run recorded (see _ALL_METRICS). Ones
+        # nobody has (e.g. test metrics without a test split, accuracy
+        # without a task) are skipped quietly - they weren't asked for by
+        # name, so there's nothing to warn about.
+        metrics = usable_metrics(rows, _ALL_METRICS)[0]
         if metrics:
-            info(f"Ranking by every recorded metric: {', '.join(metrics)}")
+            info(f"Ranking by every recorded quality metric: {', '.join(metrics)}")
     else:
         metrics = choose_metrics(by, default=[default_rank_metric(sweep)])
         if not metrics:
@@ -462,3 +471,48 @@ def plot_sweep(
         root=root,
         comparisons_root=sweep_dir(name, sweeps_root) / "plots",
     )
+
+
+def delete_sweep(
+    name: str,
+    yes: bool = False,
+    root: pathlib.Path = EXPERIMENTS_ROOT,
+    sweeps_root: pathlib.Path = SWEEPS_ROOT,
+) -> Optional[int]:
+    """
+    Delete a sweep: every run listed in its manifest, then the sweep's own
+    directory. Runs are taken from sweep.json, never matched by name prefix,
+    so an unrelated experiment that happens to be named <sweep>_something
+    survives. Asks first (it can be dozens of experiments) unless yes.
+
+    Returns the number of run directories removed, or None if nothing was
+    deleted.
+    """
+    sweep = _load_or_warn(name, sweeps_root)
+    if sweep is None:
+        return None
+
+    run_dirs = [
+        experiment_dir(run["name"], root=root)
+        for run in sweep["runs"]
+        if experiment_dir(run["name"], root=root).exists()
+    ]
+
+    if not yes:
+        confirmed = questionary.confirm(
+            f"Delete sweep {name} and its {len(run_dirs)} run(s)?", default=False, style=PROMPT_STYLE
+        ).ask()
+        if not confirmed:
+            console.print()
+            warning("Cancelled - nothing was deleted.")
+            console.print()
+            return None
+
+    for run_dir in run_dirs:
+        shutil.rmtree(run_dir)
+    shutil.rmtree(sweep_dir(name, sweeps_root))
+
+    console.print()
+    success(f"Deleted sweep {name} ({len(run_dirs)} runs).")
+    console.print()
+    return len(run_dirs)

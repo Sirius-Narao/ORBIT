@@ -27,7 +27,7 @@ def fake_answers(monkeypatch, answers):
 
 def test_repl_prints_banner_and_dispatches_known_command(monkeypatch, capsys):
     calls = []
-    monkeypatch.setattr(parser_module, "list_experiments", lambda: calls.append("called"))
+    monkeypatch.setattr(parser_module, "list_experiments", lambda **k: calls.append("called"))
     fake_answers(monkeypatch, ["list", "exit"])
 
     repl_module.repl()
@@ -46,7 +46,7 @@ def test_repl_quit_also_ends_the_loop(monkeypatch, capsys):
 
 def test_repl_unknown_command_does_not_crash_the_loop(monkeypatch):
     calls = []
-    monkeypatch.setattr(parser_module, "list_experiments", lambda: calls.append("called"))
+    monkeypatch.setattr(parser_module, "list_experiments", lambda **k: calls.append("called"))
     fake_answers(monkeypatch, ["banana", "list", "exit"])
 
     repl_module.repl()
@@ -56,7 +56,7 @@ def test_repl_unknown_command_does_not_crash_the_loop(monkeypatch):
 
 def test_repl_blank_input_is_a_noop(monkeypatch):
     calls = []
-    monkeypatch.setattr(parser_module, "list_experiments", lambda: calls.append("called"))
+    monkeypatch.setattr(parser_module, "list_experiments", lambda **k: calls.append("called"))
     fake_answers(monkeypatch, ["", "   ", "list", "exit"])
 
     repl_module.repl()
@@ -66,7 +66,7 @@ def test_repl_blank_input_is_a_noop(monkeypatch):
 
 def test_repl_help_prints_usage_without_dispatching(monkeypatch, capsys):
     calls = []
-    monkeypatch.setattr(parser_module, "list_experiments", lambda: calls.append("called"))
+    monkeypatch.setattr(parser_module, "list_experiments", lambda **k: calls.append("called"))
     fake_answers(monkeypatch, ["help", "exit"])
 
     repl_module.repl()
@@ -84,7 +84,7 @@ def test_repl_catches_domain_exception_and_keeps_going(monkeypatch, capsys):
             FileNotFoundError("missing.csv not found")
         ),
     )
-    monkeypatch.setattr(parser_module, "list_experiments", lambda: calls.append("called"))
+    monkeypatch.setattr(parser_module, "list_experiments", lambda **k: calls.append("called"))
     fake_answers(monkeypatch, ["import missing.csv", "list", "exit"])
 
     repl_module.repl()
@@ -95,7 +95,7 @@ def test_repl_catches_domain_exception_and_keeps_going(monkeypatch, capsys):
 
 def test_repl_keyboard_interrupt_reprompts_instead_of_exiting(monkeypatch):
     calls = []
-    monkeypatch.setattr(parser_module, "list_experiments", lambda: calls.append("called"))
+    monkeypatch.setattr(parser_module, "list_experiments", lambda **k: calls.append("called"))
     fake_answers(monkeypatch, [KeyboardInterrupt(), "list", "exit"])
 
     repl_module.repl()

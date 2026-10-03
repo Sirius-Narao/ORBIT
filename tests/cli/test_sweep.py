@@ -344,16 +344,17 @@ def test_compare_sweep_all_metrics_ranks_by_every_recorded_metric(monkeypatch, r
     ranked = compare_sweep("sw", all_metrics=True, **roots)
     out = capsys.readouterr().out
 
-    every = "final_loss, test_loss, accuracy, test_accuracy, duration_seconds"
-    assert f"Ranking by every recorded metric: {every}" in out
+    every = "final_loss, test_loss, accuracy, test_accuracy"
+    assert f"Ranking by every recorded quality metric: {every}" in out
     assert f"ranked by average rank over {every}" in out
     assert f"Best run overall: {ranked[0]['run']}" in out
-    for label in ("Final Loss", "Test Loss", "Accuracy", "Test Accuracy", "Duration"):
+    assert "Best Duration" not in out  # duration is excluded from --all
+    for label in ("Final Loss", "Test Loss", "Accuracy", "Test Accuracy"):
         assert f"Best {label} ★" in out
 
 
 def test_compare_sweep_all_metrics_quietly_skips_metrics_nobody_recorded(monkeypatch, roots, capsys):
-    # No test split and no task: only final_loss and duration exist.
+    # No test split and no task: of the quality metrics only final_loss exists.
     write_base(roots["root"])
     create_lr_seed_sweep(monkeypatch, roots)
     start_sweep("sw", **roots)
@@ -362,7 +363,8 @@ def test_compare_sweep_all_metrics_quietly_skips_metrics_nobody_recorded(monkeyp
     compare_sweep("sw", all_metrics=True, **roots)
     out = capsys.readouterr().out
 
-    assert "Ranking by every recorded metric: final_loss, duration_seconds" in out
+    assert "Ranking by every recorded quality metric: final_loss" in out
+    assert "duration_seconds" not in out
     assert "not ranking by it" not in out
 
 
@@ -379,3 +381,77 @@ def test_compare_sweep_all_metrics_before_any_runs_warns(monkeypatch, roots, cap
 def test_compare_sweep_rejects_by_together_with_all_metrics(roots):
     with pytest.raises(ValueError):
         compare_sweep("sw", by=["test_loss"], all_metrics=True, **roots)
+
+
+# --- delete_sweep ----------------------------------------------------------------
+
+from orbit.cli.commands.sweep import delete_sweep
+
+
+def test_delete_sweep_confirmed_removes_runs_and_manifest_only(monkeypatch, roots, capsys):
+    write_base(roots["root"])
+    write_base(roots["root"], name="sw_extra")  # shares the prefix, not in the sweep
+    create_lr_seed_sweep(monkeypatch, roots)
+    monkeypatch.setattr(questionary, "confirm", lambda *a, **k: FakeAnswer(True))
+
+    assert delete_sweep("sw", **roots) == 4
+
+    for i in range(1, 5):
+        assert not (roots["root"] / f"sw_00{i}").exists()
+    assert not (roots["sweeps_root"] / "sw").exists()
+    assert (roots["root"] / "sw_extra").exists()
+    assert (roots["root"] / "base_exp").exists()
+    assert "Deleted sweep sw (4 runs)." in capsys.readouterr().out
+
+
+def test_delete_sweep_declined_changes_nothing(monkeypatch, roots, capsys):
+    write_base(roots["root"])
+    create_lr_seed_sweep(monkeypatch, roots)
+    monkeypatch.setattr(questionary, "confirm", lambda *a, **k: FakeAnswer(False))
+
+    assert delete_sweep("sw", **roots) is None
+
+    assert (roots["sweeps_root"] / "sw" / "sweep.json").exists()
+    assert (roots["root"] / "sw_001").exists()
+    assert "nothing was deleted" in capsys.readouterr().out
+
+
+def test_delete_sweep_yes_skips_the_prompt(monkeypatch, roots):
+    write_base(roots["root"])
+    create_lr_seed_sweep(monkeypatch, roots)
+
+    def no_prompt(*a, **k):
+        raise AssertionError("yes=True must not prompt")
+
+    monkeypatch.setattr(questionary, "confirm", no_prompt)
+
+    assert delete_sweep("sw", yes=True, **roots) == 4
+    assert not (roots["sweeps_root"] / "sw").exists()
+
+
+def test_delete_sweep_counts_only_runs_still_on_disk(monkeypatch, roots):
+    import shutil
+
+    write_base(roots["root"])
+    create_lr_seed_sweep(monkeypatch, roots)
+    shutil.rmtree(roots["root"] / "sw_002")
+
+    assert delete_sweep("sw", yes=True, **roots) == 3
+
+
+def test_delete_sweep_missing(roots, capsys):
+    assert delete_sweep("nope", yes=True, **roots) is None
+    assert "was not found" in capsys.readouterr().out
+
+
+def test_compare_sweep_by_duration_still_works(monkeypatch, roots, capsys):
+    write_base(roots["root"])
+    create_lr_seed_sweep(monkeypatch, roots)
+    start_sweep("sw", **roots)
+    capsys.readouterr()
+
+    ranked = compare_sweep("sw", by=["duration_seconds"], **roots)
+
+    durations = [r["duration_seconds"] for r in ranked]
+    assert durations == sorted(durations)
+    assert "ranked by duration_seconds" in capsys.readouterr().out

@@ -42,3 +42,33 @@ def load_sweep(name: str, root: pathlib.Path = SWEEPS_ROOT) -> dict:
     path = sweep_dir(name, root) / "sweep.json"
     with open(path) as f:
         return json.load(f)
+
+
+def list_sweep_names(root: pathlib.Path = SWEEPS_ROOT) -> list:
+    """Sweeps on disk: directories under root that hold a sweep.json."""
+    if not root.exists():
+        return []
+    return sorted(p.name for p in root.iterdir() if (p / "sweep.json").exists())
+
+
+def sweep_membership(root: pathlib.Path = SWEEPS_ROOT) -> dict:
+    """{run_name: sweep_name} for every run listed in any sweep manifest."""
+    membership = {}
+    for name in list_sweep_names(root):
+        for run in load_sweep(name, root)["runs"]:
+            membership[run["name"]] = name
+    return membership
+
+
+def sweeps_root_for(experiments_root: pathlib.Path) -> pathlib.Path:
+    """
+    The sweeps directory that sits next to an experiments directory:
+    .orbits/experiments -> .orbits/sweeps (== SWEEPS_ROOT in normal use).
+
+    Commands that take only an experiments root (orbit list, orbit delete)
+    derive their sweeps root from it instead of defaulting to the fixed
+    SWEEPS_ROOT, so a call pointed at some other experiments directory (a
+    test's tmp_path) can never read - or, for `orbit delete --all`, wipe -
+    the real project's .orbits/sweeps/.
+    """
+    return pathlib.Path(experiments_root).parent / "sweeps"

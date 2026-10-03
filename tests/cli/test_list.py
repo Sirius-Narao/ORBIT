@@ -146,3 +146,86 @@ def test_list_experiments_shows_r2_as_a_plain_number(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "0.7123" in out
     assert "71.23%" not in out
+
+
+# --- sweeps in orbit list ---------------------------------------------------------
+
+def write_sweep(project, sweep_name, run_names, base="base_exp", base_config=None):
+    """A minimal sweep manifest under <project>/sweeps, runs under <project>/experiments."""
+    sweep_dir = project / "sweeps" / sweep_name
+    sweep_dir.mkdir(parents=True)
+    sweep = {
+        "name": sweep_name,
+        "base": base,
+        "base_config": base_config or {},
+        "grid": {"seed": [1, 2]},
+        "runs": [{"name": run, "params": {"seed": i}} for i, run in enumerate(run_names, start=1)],
+    }
+    (sweep_dir / "sweep.json").write_text(json.dumps(sweep))
+
+
+def test_list_hides_sweep_runs_and_shows_a_sweeps_table(tmp_path, capsys):
+    experiments = tmp_path / "experiments"
+    write_results(experiments / "standalone", final_loss=0.5)
+    write_results(experiments / "sw_001", final_loss=0.3)
+    write_results(experiments / "sw_002", final_loss=0.01)
+    (experiments / "sw_003").mkdir()
+    write_sweep(tmp_path, "sw", ["sw_001", "sw_002", "sw_003"])
+
+    list_experiments(root=experiments)
+    out = capsys.readouterr().out
+
+    experiments_part, sweeps_part = out.split("Sweeps")
+    assert "standalone" in experiments_part
+    assert "sw_001" not in experiments_part and "sw_003" not in experiments_part
+    assert "2/3 done" in sweeps_part
+    assert "final_loss" in sweeps_part
+    assert "sw_002" in sweeps_part  # best run
+    assert "0.01" in sweeps_part
+
+
+def test_list_runs_flag_shows_sweep_runs_again(tmp_path, capsys):
+    experiments = tmp_path / "experiments"
+    write_results(experiments / "sw_001", final_loss=0.3)
+    write_sweep(tmp_path, "sw", ["sw_001"])
+
+    list_experiments(root=experiments, show_runs=True)
+    out = capsys.readouterr().out
+
+    experiments_part = out.split("Sweeps")[0]
+    assert "sw_001" in experiments_part
+
+
+def test_list_only_sweeps_shows_no_empty_warning(tmp_path, capsys):
+    experiments = tmp_path / "experiments"
+    write_results(experiments / "sw_001", final_loss=0.3)
+    write_sweep(tmp_path, "sw", ["sw_001"])
+
+    list_experiments(root=experiments)
+    out = capsys.readouterr().out
+
+    assert "No experiments found" not in out
+    assert "Sweeps" in out
+
+
+def test_list_sweep_with_no_finished_runs_shows_dashes(tmp_path, capsys):
+    experiments = tmp_path / "experiments"
+    (experiments / "sw_001").mkdir(parents=True)
+    write_sweep(tmp_path, "sw", ["sw_001"])
+
+    list_experiments(root=experiments)
+    out = capsys.readouterr().out
+
+    assert "0/1 done" in out
+    sweeps_row = [line for line in out.splitlines() if "0/1 done" in line][0]
+    assert sweeps_row.count("-") >= 2
+
+
+def test_list_ranks_sweeps_by_test_loss_when_they_have_a_split(tmp_path, capsys):
+    experiments = tmp_path / "experiments"
+    write_results(experiments / "sw_001", final_loss=0.3)
+    write_sweep(tmp_path, "sw", ["sw_001"], base_config={"test_split": 0.2})
+
+    list_experiments(root=experiments)
+
+    assert "test_loss" in capsys.readouterr().out

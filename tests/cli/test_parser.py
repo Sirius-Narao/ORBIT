@@ -478,3 +478,25 @@ def test_sweep_compare_all_and_by_are_mutually_exclusive(monkeypatch, capsys):
         parser_module.main()
 
     assert "not allowed with argument" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("argv, expected", [(["list"], False), (["list", "--runs"], True)])
+def test_list_dispatches_show_runs(monkeypatch, argv, expected):
+    calls = []
+    monkeypatch.setattr(parser_module, "list_experiments", lambda **k: calls.append(k))
+    monkeypatch.setattr("sys.argv", ["orbit", *argv])
+
+    parser_module.main()
+
+    assert calls == [{"show_runs": expected}]
+
+
+@pytest.mark.parametrize("argv, expected_yes", [(["delete", "sw"], False), (["delete", "sw", "--yes"], True)])
+def test_sweep_delete_dispatches(monkeypatch, argv, expected_yes):
+    calls = []
+    monkeypatch.setattr(parser_module, "delete_sweep", lambda *a, **k: calls.append((a, k)))
+    monkeypatch.setattr("sys.argv", ["orbit", "sweep", *argv])
+
+    parser_module.main()
+
+    assert calls == [(("sw",), {"yes": expected_yes})]
