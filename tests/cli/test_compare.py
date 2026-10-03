@@ -216,3 +216,114 @@ def test_compare_experiments_plotloss_and_logscale_produce_separate_files(tmp_pa
 
     saved = list(comparisons_root.glob("*.png"))
     assert len(saved) == 2
+
+
+# --- ranking (--by) ------------------------------------------------------------
+
+def write_ranked(root, name, final_loss, test_loss=None, test_accuracy=None, duration=None, task=None):
+    exp_dir = write_config(root, name)
+    results_dir = exp_dir / "results"
+    results_dir.mkdir(parents=True)
+    results = Results(
+        name=name,
+        final_loss=final_loss,
+        loss_history=[0.5, final_loss],
+        test_loss=test_loss,
+        test_accuracy=test_accuracy,
+        duration_seconds=duration,
+        hyperparams={"task": task} if task else {},
+    )
+    with open(results_dir / "results.json", "w") as f:
+        json.dump(results.to_dict(), f)
+
+
+def _three_experiments(tmp_path):
+    """
+               test_loss  test_accuracy  duration   ranks      avg
+      exp_a      0.10        0.80          5.0      1, 2, 3    2.0
+      exp_b      0.20        0.90          1.0      2, 1, 1    1.33  <- best overall
+      exp_c      0.30        0.70          2.0      3, 3, 2    2.67
+    """
+    write_ranked(tmp_path, "exp_a", 0.05, test_loss=0.10, test_accuracy=0.80, duration=5.0,
+                 task="binary_classification")
+    write_ranked(tmp_path, "exp_b", 0.06, test_loss=0.20, test_accuracy=0.90, duration=1.0,
+                 task="binary_classification")
+    write_ranked(tmp_path, "exp_c", 0.07, test_loss=0.30, test_accuracy=0.70, duration=2.0,
+                 task="binary_classification")
+
+
+def test_compare_without_by_does_not_rank(tmp_path, capsys):
+    _three_experiments(tmp_path)
+
+    assert compare_experiments(["exp_c", "exp_a"], root=tmp_path) is None
+
+    out = capsys.readouterr().out
+    assert "Best" not in out
+    assert out.index("exp_c") < out.index("exp_a")
+
+
+def test_compare_by_several_metrics_ranks_by_average_rank(tmp_path, capsys):
+    _three_experiments(tmp_path)
+
+    ranked = compare_experiments(
+        is_all=True, root=tmp_path, by=["test_loss", "test_accuracy", "duration_seconds"]
+    )
+    out = capsys.readouterr().out
+
+    assert [r["name"] for r in ranked] == ["exp_b", "exp_a", "exp_c"]
+    assert "Best run overall: exp_b - average rank 1.333" in out
+    assert "Best Test Loss ★: exp_a - 0.1" in out
+    assert "Best Test Accuracy ★: exp_b - 90.00%" in out
+    assert "Best Duration ★: exp_b - 1.00s" in out
+    assert "Avg Rank" in out
+
+
+def test_compare_by_single_metric_has_no_avg_rank_column(tmp_path, capsys):
+    _three_experiments(tmp_path)
+
+    ranked = compare_experiments(is_all=True, root=tmp_path, by=["test_loss"])
+    out = capsys.readouterr().out
+
+    assert [r["name"] for r in ranked] == ["exp_a", "exp_b", "exp_c"]
+    assert "Best run: exp_a - test_loss 0.1" in out
+    assert "Avg Rank" not in out
+
+
+def test_compare_by_puts_unrun_experiments_last(tmp_path, capsys):
+    _three_experiments(tmp_path)
+    write_config(tmp_path, "exp_unrun")
+
+    ranked = compare_experiments(
+        ["exp_unrun", "exp_c", "exp_b"], root=tmp_path, by=["test_loss", "test_accuracy"]
+    )
+
+    assert [r["name"] for r in ranked][-1] == "exp_unrun"
+    assert "not run" in capsys.readouterr().out
+
+
+def test_compare_by_drops_a_metric_nobody_has(tmp_path, capsys):
+    write_ranked(tmp_path, "exp_a", 0.2)
+    write_ranked(tmp_path, "exp_b", 0.1)
+
+    ranked = compare_experiments(is_all=True, root=tmp_path, by=["final_loss", "test_loss"])
+    out = capsys.readouterr().out
+
+    assert "not ranking by it" in out
+    assert [r["name"] for r in ranked] == ["exp_b", "exp_a"]
+
+
+def test_compare_bare_by_prompts_for_metrics(tmp_path, monkeypatch, capsys):
+    import questionary
+
+    _three_experiments(tmp_path)
+
+    class FakeAnswer:
+        def ask(self):
+            return ["Test Loss", "Duration"]
+
+    monkeypatch.setattr(questionary, "checkbox", lambda *a, **k: FakeAnswer())
+
+    ranked = compare_experiments(is_all=True, root=tmp_path, by=[])
+
+    # exp_a: ranks 1, 3 -> 2.0   exp_b: 2, 1 -> 1.5   exp_c: 3, 2 -> 2.5
+    assert [r["name"] for r in ranked] == ["exp_b", "exp_a", "exp_c"]

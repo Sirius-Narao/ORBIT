@@ -2,6 +2,7 @@ import pathlib
 from typing import List
 
 from orbit.core import Results
+from orbit.visualization.comparison_style import add_legend, line_colors
 
 
 def plot_loss(results: Results, output_path: pathlib.Path, log_scale: bool = False) -> pathlib.Path:
@@ -54,8 +55,9 @@ def plot_loss_comparison(
     Overlay each Results' loss_history on one line plot and save it to
     output_path. See plot_loss's docstring for why matplotlib is imported
     lazily here, and what log_scale does. Unlike plot_loss's single fixed
-    accent color, multiple lines need matplotlib's default color cycle to
-    stay distinguishable.
+    accent color, multiple lines need distinct colors to stay
+    distinguishable - see comparison_style.py, which also moves the legend
+    outside the axes once there are too many lines to fit inside.
     """
     if not results_list:
         raise ValueError("No results to compare.")
@@ -68,9 +70,9 @@ def plot_loss_comparison(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots()
-    for results in results_list:
+    for results, color in zip(results_list, line_colors(len(results_list))):
         epochs = range(1, len(results.loss_history) + 1)
-        ax.plot(epochs, results.loss_history, label=results.name)
+        ax.plot(epochs, results.loss_history, label=results.name, color=color)
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
     title = "Training Loss Comparison"
@@ -78,9 +80,10 @@ def plot_loss_comparison(
         ax.set_yscale("log")
         title += " (log scale)"
     ax.set_title(title)
-    ax.legend()
+    add_legend(ax, len(results_list))
 
-    fig.savefig(output_path)
+    # bbox_inches="tight" keeps an outside legend (many lines) from being cropped.
+    fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
 
     return output_path

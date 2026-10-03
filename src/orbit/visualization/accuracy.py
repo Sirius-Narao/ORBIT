@@ -2,6 +2,7 @@ import pathlib
 from typing import List
 
 from orbit.core import Results
+from orbit.visualization.comparison_style import add_legend, line_colors
 from orbit.core.metrics import metric_label
 
 
@@ -70,9 +71,9 @@ def plot_accuracy_comparison(
 
     label = accuracy_axis_label(results_list)
     fig, ax = plt.subplots()
-    for results in results_list:
+    for results, color in zip(results_list, line_colors(len(results_list))):
         epochs = range(1, len(results.accuracy_history) + 1)
-        ax.plot(epochs, results.accuracy_history, label=results.name)
+        ax.plot(epochs, results.accuracy_history, label=results.name, color=color)
     ax.set_xlabel("Epoch")
     ax.set_ylabel(label)
     title = f"{label} Comparison"
@@ -80,9 +81,10 @@ def plot_accuracy_comparison(
         ax.set_yscale("log")
         title += " (log scale)"
     ax.set_title(title)
-    ax.legend()
+    add_legend(ax, len(results_list))
 
-    fig.savefig(output_path)
+    # bbox_inches="tight" keeps an outside legend (many lines) from being cropped.
+    fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
 
     return output_path

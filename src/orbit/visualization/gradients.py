@@ -2,6 +2,7 @@ import pathlib
 from typing import List
 
 from orbit.core import Results
+from orbit.visualization.comparison_style import add_legend, line_colors
 
 
 def plot_gradient_norm(results: Results, output_path: pathlib.Path, log_scale: bool = False) -> pathlib.Path:
@@ -57,9 +58,9 @@ def plot_gradient_norm_comparison(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots()
-    for results in results_list:
+    for results, color in zip(results_list, line_colors(len(results_list))):
         epochs = range(1, len(results.gradient_norm_history) + 1)
-        ax.plot(epochs, results.gradient_norm_history, label=results.name)
+        ax.plot(epochs, results.gradient_norm_history, label=results.name, color=color)
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Gradient Norm")
     title = "Gradient Norm Comparison"
@@ -67,9 +68,10 @@ def plot_gradient_norm_comparison(
         ax.set_yscale("log")
         title += " (log scale)"
     ax.set_title(title)
-    ax.legend()
+    add_legend(ax, len(results_list))
 
-    fig.savefig(output_path)
+    # bbox_inches="tight" keeps an outside legend (many lines) from being cropped.
+    fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
 
     return output_path

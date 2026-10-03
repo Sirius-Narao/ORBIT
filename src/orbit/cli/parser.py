@@ -16,6 +16,15 @@ from orbit.cli.commands.copy import copy_experiment
 from orbit.cli.commands.rename import rename_experiment
 from orbit.cli.commands.plotloss import plot_experiment
 from orbit.cli.commands.plot import plot_experiments
+from orbit.cli.commands.sweep import (
+    create_sweep,
+    start_sweep,
+    sweep_status,
+    compare_sweep,
+    export_sweep,
+    plot_sweep,
+)
+from orbit.core.ranking import RANK_METRICS
 from orbit.core.metrics import format_metric, metric_label
 from orbit.ui import console, success, warning
 
@@ -55,6 +64,12 @@ def _report_test_metrics(results) -> None:
         label = metric_label(task)
         name = "accuracy" if label == "Accuracy" else label
         success(f"Test {name}: {format_metric(results.test_accuracy, task)}")
+
+
+_BY_HELP = (
+    "Rank by one or more metrics - " + ", ".join(RANK_METRICS) + "; several are combined by "
+    "average rank. A bare --by asks which ones interactively"
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -105,6 +120,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--logscale", action="store_true",
         help="Use a log-scale y-axis for --plotloss (helps see small changes late in training)",
     )
+    compare_parser.add_argument(
+        "--by", nargs="*", choices=list(RANK_METRICS), metavar="METRIC",
+        help=_BY_HELP + " (default: no ranking)",
+    )
 
     # Reproduce command:
     reproduce_parser = subparsers.add_parser("reproduce", help="Re-run a saved experiment and check the result matches")
@@ -136,6 +155,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="Use a log-scale y-axis where applicable (helps see small changes late in training)",
     )
     plot_parser.add_argument(
+        "--metrics", nargs="+",
+        choices=["loss", "accuracy", "gradient_norm", "test_loss", "test_accuracy"],
+        help="Metric(s) to plot (default: prompted interactively)",
+    )
+
+    # Sweep command (nested subcommands)
+    sweep_parser = subparsers.add_parser("sweep", help="Hyperparameter sweeps over a base experiment")
+    sweep_subparsers = sweep_parser.add_subparsers(dest="sweep_command", required=True)
+
+    sweep_create_parser = sweep_subparsers.add_parser(
+        "create", help="Interactively define a grid over a base experiment's hyperparameters"
+    )
+    sweep_create_parser.add_argument("name", help="Name of the new sweep")
+    sweep_create_parser.add_argument("--base", required=True, help="Experiment to use as the base config")
+
+    sweep_start_parser = sweep_subparsers.add_parser(
+        "start", help="Train every run not done yet (re-run to resume an interrupted sweep)"
+    )
+    sweep_start_parser.add_argument("name", help="Name of the sweep")
+
+    sweep_status_parser = sweep_subparsers.add_parser("status", help="Show each run's status")
+    sweep_status_parser.add_argument("name", help="Name of the sweep")
+
+    sweep_compare_parser = sweep_subparsers.add_parser("compare", help="Rank the sweep's runs and show the best")
+    sweep_compare_parser.add_argument("name", help="Name of the sweep")
+    sweep_compare_metrics = sweep_compare_parser.add_mutually_exclusive_group()
+    sweep_compare_metrics.add_argument(
+        "--by", nargs="*", choices=list(RANK_METRICS), metavar="METRIC",
+        help=_BY_HELP + " (default: test_loss if the sweep has a test split, else final_loss)",
+    )
+    sweep_compare_metrics.add_argument(
+        "--all", action="store_true", dest="all_metrics",
+        help="Rank by every metric the sweep's runs recorded (" + ", ".join(RANK_METRICS) + ")",
+    )
+
+    sweep_export_parser = sweep_subparsers.add_parser("export", help="Export every run's params and metrics to CSV")
+    sweep_export_parser.add_argument("name", help="Name of the sweep")
+    sweep_export_parser.add_argument("--output", help="CSV path (default: .orbits/sweeps/<name>/results.csv)")
+
+    sweep_plot_parser = sweep_subparsers.add_parser("plot", help="Plot the sweep's finished runs")
+    sweep_plot_parser.add_argument("name", help="Name of the sweep")
+    sweep_plot_parser.add_argument(
+        "--logscale", action="store_true",
+        help="Use a log-scale y-axis where applicable (helps see small changes late in training)",
+    )
+    sweep_plot_parser.add_argument(
         "--metrics", nargs="+",
         choices=["loss", "accuracy", "gradient_norm", "test_loss", "test_accuracy"],
         help="Metric(s) to plot (default: prompted interactively)",
@@ -184,7 +249,9 @@ def _dispatch(args: argparse.Namespace) -> None:
     elif args.command == "inspect":
         inspect_experiment(args.name)
     elif args.command == "compare":
-        compare_experiments(args.names, is_all=args.all, plot_loss=args.plotloss, log_scale=args.logscale)
+        compare_experiments(
+            args.names, is_all=args.all, plot_loss=args.plotloss, log_scale=args.logscale, by=args.by
+        )
     elif args.command == "reproduce":
         reproduce_experiment(args.name)
     elif args.command == "copy":
@@ -195,8 +262,25 @@ def _dispatch(args: argparse.Namespace) -> None:
         plot_experiment(args.name, log_scale=args.logscale)
     elif args.command == "plot":
         plot_experiments(args.names, is_all=args.all, log_scale=args.logscale, metrics=args.metrics)
+    elif args.command == "sweep":
+        _dispatch_sweep(args)
     elif args.command == "import":
         import_dataset(args.csv_path, name=args.name, target_columns=args.target)
+
+
+def _dispatch_sweep(args: argparse.Namespace) -> None:
+    if args.sweep_command == "create":
+        create_sweep(args.name, args.base)
+    elif args.sweep_command == "start":
+        start_sweep(args.name)
+    elif args.sweep_command == "status":
+        sweep_status(args.name)
+    elif args.sweep_command == "compare":
+        compare_sweep(args.name, by=args.by, all_metrics=args.all_metrics)
+    elif args.sweep_command == "export":
+        export_sweep(args.name, output=args.output)
+    elif args.sweep_command == "plot":
+        plot_sweep(args.name, log_scale=args.logscale, metrics=args.metrics)
 
 
 def main() -> None:

@@ -337,7 +337,7 @@ def test_compare_dispatches_with_plotloss_flag(monkeypatch):
     monkeypatch.setattr(
         parser_module,
         "compare_experiments",
-        lambda names, is_all=False, plot_loss=False, log_scale=False: calls.append(
+        lambda names, is_all=False, plot_loss=False, log_scale=False, by=None: calls.append(
             (names, is_all, plot_loss, log_scale)
         ),
     )
@@ -353,7 +353,7 @@ def test_compare_dispatches_with_plotloss_and_logscale_flags(monkeypatch):
     monkeypatch.setattr(
         parser_module,
         "compare_experiments",
-        lambda names, is_all=False, plot_loss=False, log_scale=False: calls.append(
+        lambda names, is_all=False, plot_loss=False, log_scale=False, by=None: calls.append(
             (names, is_all, plot_loss, log_scale)
         ),
     )
@@ -417,3 +417,64 @@ def test_run_reports_test_r2_as_a_plain_number(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Test R²: 0.8123" in out
     assert "%" not in out
+
+
+@pytest.mark.parametrize(
+    "argv, fn_name, expected",
+    [
+        (["create", "sw", "--base", "b"], "create_sweep", (("sw", "b"), {})),
+        (["start", "sw"], "start_sweep", (("sw",), {})),
+        (["status", "sw"], "sweep_status", (("sw",), {})),
+        (["compare", "sw", "--by", "test_loss"], "compare_sweep", (("sw",), {"by": ["test_loss"], "all_metrics": False})),
+        (
+            ["compare", "sw", "--by", "test_loss", "test_accuracy"],
+            "compare_sweep",
+            (("sw",), {"by": ["test_loss", "test_accuracy"], "all_metrics": False}),
+        ),
+        (["compare", "sw", "--by"], "compare_sweep", (("sw",), {"by": [], "all_metrics": False})),
+        (["compare", "sw"], "compare_sweep", (("sw",), {"by": None, "all_metrics": False})),
+        (["compare", "sw", "--all"], "compare_sweep", (("sw",), {"by": None, "all_metrics": True})),
+        (["export", "sw", "--output", "x.csv"], "export_sweep", (("sw",), {"output": "x.csv"})),
+        (
+            ["plot", "sw", "--logscale", "--metrics", "loss"],
+            "plot_sweep",
+            (("sw",), {"log_scale": True, "metrics": ["loss"]}),
+        ),
+    ],
+)
+def test_sweep_subcommands_dispatch(monkeypatch, argv, fn_name, expected):
+    calls = []
+    monkeypatch.setattr(parser_module, fn_name, lambda *a, **k: calls.append((a, k)))
+    monkeypatch.setattr("sys.argv", ["orbit", "sweep", *argv])
+
+    parser_module.main()
+
+    assert calls == [expected]
+
+
+@pytest.mark.parametrize(
+    "argv, expected_by",
+    [
+        (["compare", "a", "b"], None),
+        (["compare", "a", "b", "--by", "test_loss", "test_accuracy", "duration_seconds"],
+         ["test_loss", "test_accuracy", "duration_seconds"]),
+        (["compare", "--all", "--by"], []),
+    ],
+)
+def test_compare_dispatches_by_metrics(monkeypatch, argv, expected_by):
+    calls = []
+    monkeypatch.setattr(parser_module, "compare_experiments", lambda *a, **k: calls.append(k["by"]))
+    monkeypatch.setattr("sys.argv", ["orbit", *argv])
+
+    parser_module.main()
+
+    assert calls == [expected_by]
+
+
+def test_sweep_compare_all_and_by_are_mutually_exclusive(monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["orbit", "sweep", "compare", "sw", "--all", "--by", "test_loss"])
+
+    with pytest.raises(SystemExit):
+        parser_module.main()
+
+    assert "not allowed with argument" in capsys.readouterr().err
