@@ -7,11 +7,13 @@ import questionary
 from orbit.cli.commands.new import (
     NORMALIZE_CHOICES,
     _ask_float,
+    _ask_momentum,
     _ask_int,
     _ask_optional_float,
     _ask_optional_int,
     _print_config_summary,
 )
+from orbit.core.config import OPTIMIZER_REGISTRY
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir
 from orbit.ui import PROMPT_STYLE, console, success, warning
 
@@ -19,10 +21,12 @@ from orbit.ui import PROMPT_STYLE, console, success, warning
 def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
     """
     Build a new experiment.json from an existing one's config: dataset,
-    model, loss, optimizer, and task (if set) are copied unchanged (editing
-    those means running orbit new from scratch); normalize/learning_rate/
-    batch_size/epochs/test_split/seed are all re-prompted with the source's
-    values pre-filled as defaults.
+    model, loss, and task (if set) are copied unchanged (editing those means
+    running orbit new from scratch); normalize/optimizer (plus momentum, for
+    SGD)/learning_rate/batch_size/epochs/test_split/seed are all re-prompted
+    with the source's values pre-filled as defaults. Adam's betas/eps (JSON-
+    only, never prompted) carry over only if the copy stays on Adam - an
+    option for the other optimizer would make load_experiment raise.
     Keeping the source's seed (just hit enter) is deliberately the default
     - it's what lets a copy isolate the effect of a hyperparameter change
     from random-init/shuffle noise, the same way an ablation study holds
@@ -46,6 +50,13 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
         default=source.get("normalize", "none"),
         style=PROMPT_STYLE,
     ).ask()
+    optimizer = questionary.select(
+        "Optimizer:",
+        choices=list(OPTIMIZER_REGISTRY.keys()),
+        default=source["optimizer"],
+        style=PROMPT_STYLE,
+    ).ask()
+    momentum = _ask_momentum(optimizer, default=str(source.get("momentum", 0)))
     learning_rate = _ask_float("Learning rate:", default=str(source["learning_rate"]))
     batch_size = _ask_optional_int(
         "Batch size (blank = default 32):", default=str(source.get("batch_size", ""))
@@ -65,7 +76,7 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
         "dataset": source["dataset"],
         "model": source["model"],
         "loss": source["loss"],
-        "optimizer": source["optimizer"],
+        "optimizer": optimizer,
         "learning_rate": learning_rate,
         "epochs": epochs,
         "seed": seed,
@@ -80,6 +91,12 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
         config["accuracy_tolerance"] = source["accuracy_tolerance"]
     if normalize != "none":
         config["normalize"] = normalize
+    if momentum:
+        config["momentum"] = momentum
+    if optimizer == source["optimizer"] == "Adam":
+        for option in ("betas", "eps"):
+            if option in source:
+                config[option] = source[option]
 
     _print_config_summary(config)
 

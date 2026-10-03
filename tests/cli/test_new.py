@@ -35,6 +35,7 @@ def test_create_experiment_writes_expected_config(tmp_path, monkeypatch):
             "xor_mlp_01",   # name
             "8",            # neurons (layer 1)
             "1",            # neurons (layer 2)
+            "0",            # momentum (SGD)
             "2.0",          # learning_rate
             "4",            # batch_size
             "3000",         # epochs
@@ -86,7 +87,7 @@ def test_create_experiment_omits_batch_size_when_left_blank(tmp_path, monkeypatc
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_default_batch", "1", "0.1", "", "10", "", ""],
+        texts=["xor_default_batch", "1", "0", "0.1", "", "10", "", ""],
         selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
     )
 
@@ -105,13 +106,14 @@ def test_create_experiment_fills_in_features_from_dataset_without_prompting(
         "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
     )
 
-    # Only 5 canned text answers: name, neurons, learning_rate, batch_size
-    # (blank), epochs. There is deliberately no answer for in_features - if
-    # create_experiment() still prompted for it, this would either raise
-    # StopIteration or shift every later answer by one and fail below.
+    # Only 7 canned text answers: name, neurons, momentum, learning_rate,
+    # batch_size (blank), epochs, test_split, seed. There is deliberately no
+    # answer for in_features - if create_experiment() still prompted for it,
+    # this would either raise StopIteration or shift every later answer by
+    # one and fail below.
     fake_prompts(
         monkeypatch,
-        texts=["xor_single_layer", "1", "0.05", "", "8", "", ""],
+        texts=["xor_single_layer", "1", "0", "0.05", "", "8", "", ""],
         selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
     )
 
@@ -139,7 +141,7 @@ def test_create_experiment_rejects_output_shape_mismatch_and_lets_user_fix_it(
     # succeed this time.
     fake_prompts(
         monkeypatch,
-        texts=["bad_output_then_fixed", "5", "1", "0.1", "", "10", "", ""],
+        texts=["bad_output_then_fixed", "5", "1", "0", "0.1", "", "10", "", ""],
         selects=["xor", "Linear", "Done", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
     )
 
@@ -179,7 +181,7 @@ def test_create_experiment_dataset_picker_includes_imported_datasets(
 
     fake_prompts(
         monkeypatch,
-        texts=["housing_model", "1", "0.1", "", "50", "", ""],
+        texts=["housing_model", "1", "0", "0.1", "", "50", "", ""],
         selects=["housing", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
     )
 
@@ -199,7 +201,7 @@ def test_create_experiment_sets_task_when_accuracy_tracking_chosen(tmp_path, mon
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_binary", "8", "1", "2.0", "4", "3000", "", "42"],
+        texts=["xor_binary", "8", "1", "0", "2.0", "4", "3000", "", "42"],
         selects=[
             "xor", "Linear", "Tanh", "Linear", "Sigmoid", "Done",
             "MSE", "binary_classification", "SGD", "none",
@@ -221,7 +223,7 @@ def test_create_experiment_includes_test_split_when_given(tmp_path, monkeypatch)
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_with_split", "1", "0.1", "", "10", "0.2", ""],
+        texts=["xor_with_split", "1", "0", "0.1", "", "10", "0.2", ""],
         selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
     )
 
@@ -240,7 +242,7 @@ def test_create_experiment_sets_normalize_when_chosen(tmp_path, monkeypatch):
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_normalized", "1", "0.1", "", "10", "", ""],
+        texts=["xor_normalized", "1", "0", "0.1", "", "10", "", ""],
         selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "standard"],
     )
 
@@ -259,7 +261,7 @@ def test_create_experiment_omits_normalize_when_none(tmp_path, monkeypatch):
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_raw", "1", "0.1", "", "10", "", ""],
+        texts=["xor_raw", "1", "0", "0.1", "", "10", "", ""],
         selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
     )
 
@@ -278,7 +280,7 @@ def test_create_experiment_omits_task_when_not_tracked(tmp_path, monkeypatch):
 
     fake_prompts(
         monkeypatch,
-        texts=["xor_no_tracking", "1", "0.1", "", "10", "", ""],
+        texts=["xor_no_tracking", "1", "0", "0.1", "", "10", "", ""],
         selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
     )
 
@@ -297,8 +299,8 @@ def test_create_experiment_prompts_for_tolerance_with_regression_tolerance(tmp_p
 
     fake_prompts(
         monkeypatch,
-        # name, neurons, tolerance, learning_rate, batch_size, epochs, test_split, seed
-        texts=["xor_tol", "1", "0.25", "0.1", "", "10", "", ""],
+        # name, neurons, tolerance, momentum, learning_rate, batch_size, epochs, test_split, seed
+        texts=["xor_tol", "1", "0.25", "0", "0.1", "", "10", "", ""],
         selects=["xor", "Linear", "Done", "MSE", "regression_tolerance", "SGD", "none"],
     )
 
@@ -320,7 +322,7 @@ def test_create_experiment_regression_r2_does_not_prompt_for_tolerance(tmp_path,
     # answer (learning_rate would get "10") or raise StopIteration.
     fake_prompts(
         monkeypatch,
-        texts=["xor_r2", "1", "0.1", "", "10", "", ""],
+        texts=["xor_r2", "1", "0", "0.1", "", "10", "", ""],
         selects=["xor", "Linear", "Done", "MSE", "regression_r2", "SGD", "none"],
     )
 
@@ -332,3 +334,77 @@ def test_create_experiment_regression_r2_does_not_prompt_for_tolerance(tmp_path,
     assert config["task"] == "regression_r2"
     assert config["learning_rate"] == 0.1
     assert "accuracy_tolerance" not in config
+
+
+def test_create_experiment_writes_momentum_when_nonzero(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+
+    fake_prompts(
+        monkeypatch,
+        texts=["xor_momentum", "1", "0.9", "0.1", "", "10", "", ""],
+        selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert config["optimizer"] == "SGD"
+    assert config["momentum"] == 0.9
+
+
+def test_create_experiment_omits_momentum_when_zero(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+
+    fake_prompts(
+        monkeypatch,
+        texts=["xor_plain_sgd", "1", "0", "0.1", "", "10", "", ""],
+        selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert "momentum" not in config
+
+
+def test_create_experiment_adam_skips_momentum_prompt(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name
+    )
+
+    # No momentum answer - Adam must not ask for one, or "0.01" would be
+    # consumed as momentum and every later answer would shift by one.
+    fake_prompts(
+        monkeypatch,
+        texts=["xor_adam", "1", "0.01", "", "10", "", ""],
+        selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "Adam", "none"],
+    )
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    assert config["optimizer"] == "Adam"
+    assert config["learning_rate"] == 0.01
+    assert "momentum" not in config
+
+
+def test_format_optimizer():
+    from orbit.cli.commands.new import _format_optimizer
+
+    assert _format_optimizer({"optimizer": "SGD"}) == "SGD"
+    assert _format_optimizer({"optimizer": "SGD", "momentum": 0.9}) == "SGD (momentum 0.9)"
+    assert _format_optimizer({"optimizer": "Adam"}) == "Adam"
+    assert (
+        _format_optimizer({"optimizer": "Adam", "betas": [0.9, 0.99], "eps": 1e-07})
+        == "Adam (betas 0.9, 0.99, eps 1e-07)"
+    )

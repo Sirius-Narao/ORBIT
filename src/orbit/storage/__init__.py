@@ -1,7 +1,7 @@
-# .datasets must be imported before .experiments: .experiments imports
-# orbit.core, and orbit.core.config imports these dataset helpers back from
-# orbit.storage - if .experiments ran first, that reentrant import would
-# find dataset_exists/etc. not yet bound on this still-initializing module.
+# .datasets is imported before .experiments for historical reasons: this
+# order used to be required while orbit.core re-exported load_experiment
+# (orbit.core -> orbit.core.config -> back into orbit.storage). That
+# re-export is gone, so the order no longer matters, but keep it anyway.
 from .datasets import (
     save_dataset_manifest,
     load_dataset_manifest,

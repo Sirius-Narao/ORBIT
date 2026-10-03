@@ -1,5 +1,6 @@
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, save_results, save_checkpoint
-from orbit.core import load_experiment, Results
+from orbit.core import Results
+from orbit.core.config import load_experiment
 import json
 import pathlib
 

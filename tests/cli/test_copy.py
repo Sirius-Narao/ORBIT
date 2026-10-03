@@ -4,12 +4,14 @@ import questionary
 from orbit.cli.commands.copy import copy_experiment
 
 
-def fake_prompts(monkeypatch, texts, select=None):
+def fake_prompts(monkeypatch, texts, selects=None):
     """
-    select=None stands in for the user accepting the select prompt's
-    pre-filled default (the source's value), same way the canned text
-    answers below re-type the source's values to "accept" them.
+    selects maps a select prompt's message to the answer to pick; any
+    select prompt not in it stands in for the user accepting the pre-filled
+    default (the source's value), same way the canned text answers below
+    re-type the source's values to "accept" them.
     """
+    selects = selects or {}
     texts = iter(texts)
 
     class FakeAnswer:
@@ -23,7 +25,7 @@ def fake_prompts(monkeypatch, texts, select=None):
     monkeypatch.setattr(
         questionary,
         "select",
-        lambda *a, **k: FakeAnswer(select if select is not None else k.get("default")),
+        lambda message, *a, **k: FakeAnswer(selects.get(message, k.get("default"))),
     )
 
 
@@ -56,7 +58,7 @@ def write_source_config(root, name):
 
 def test_copy_experiment_overrides_hyperparams_and_keeps_model(tmp_path, monkeypatch):
     write_source_config(tmp_path, "source_exp")
-    fake_prompts(monkeypatch, texts=["copied_exp", "3.0", "8", "500", "", "999"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "3.0", "8", "500", "", "999"])
 
     config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -85,7 +87,7 @@ def test_copy_experiment_seed_defaults_to_keeping_the_source_seed(tmp_path, monk
     # "1" here stands in for the user just hitting enter on the pre-filled
     # default - questionary would show the source's seed (1) already typed
     # into the field, so accepting it as-is sends back that same text.
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", "1"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "2.0", "4", "300", "", "1"])
 
     config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -97,7 +99,7 @@ def test_copy_experiment_seed_defaults_to_keeping_the_source_seed(tmp_path, monk
 
 def test_copy_experiment_blank_seed_gets_a_fresh_random_one(tmp_path, monkeypatch):
     write_source_config(tmp_path, "source_exp")
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", ""])
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "2.0", "4", "300", "", ""])
 
     config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -109,7 +111,7 @@ def test_copy_experiment_blank_seed_gets_a_fresh_random_one(tmp_path, monkeypatc
 
 def test_copy_experiment_blank_batch_size_omits_it(tmp_path, monkeypatch):
     write_source_config(tmp_path, "source_exp")
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "", "300", "", "1"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "2.0", "", "300", "", "1"])
 
     config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -128,7 +130,7 @@ def test_copy_experiment_preserves_task_when_present(tmp_path, monkeypatch):
     with open(config_path, "w") as f:
         json.dump(config, f)
 
-    fake_prompts(monkeypatch, texts=["copied_exp", "3.0", "8", "500", "", "999"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "3.0", "8", "500", "", "999"])
 
     copy_config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -149,7 +151,7 @@ def test_copy_experiment_test_split_defaults_to_source_value(tmp_path, monkeypat
 
     # "0.3" stands in for the user accepting the pre-filled default, same as
     # test_copy_experiment_seed_defaults_to_keeping_the_source_seed does for seed.
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "0.3", "1"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "2.0", "4", "300", "0.3", "1"])
 
     copy_config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -168,7 +170,7 @@ def test_copy_experiment_blank_test_split_omits_it(tmp_path, monkeypatch):
     with open(config_path, "w") as f:
         json.dump(config, f)
 
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", "1"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "2.0", "4", "300", "", "1"])
 
     copy_config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -187,7 +189,7 @@ def test_copy_experiment_normalize_defaults_to_source_value(tmp_path, monkeypatc
     with open(config_path, "w") as f:
         json.dump(config, f)
 
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", "1"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "2.0", "4", "300", "", "1"])
 
     copy_config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -206,7 +208,7 @@ def test_copy_experiment_can_turn_normalize_off(tmp_path, monkeypatch):
     with open(config_path, "w") as f:
         json.dump(config, f)
 
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", "1"], select="none")
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "2.0", "4", "300", "", "1"], selects={"Normalize inputs?": "none"})
 
     copy_config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -233,7 +235,7 @@ def test_copy_experiment_carries_accuracy_tolerance_with_task(tmp_path, monkeypa
     with open(config_path, "w") as f:
         json.dump(config, f)
 
-    fake_prompts(monkeypatch, texts=["copied_exp", "2.0", "4", "300", "", "1"])
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "2.0", "4", "300", "", "1"])
 
     copy_config_path = copy_experiment("source_exp", root=tmp_path)
 
@@ -242,3 +244,107 @@ def test_copy_experiment_carries_accuracy_tolerance_with_task(tmp_path, monkeypa
 
     assert copy_config["task"] == "regression_tolerance"
     assert copy_config["accuracy_tolerance"] == 0.25
+
+
+def test_copy_experiment_can_switch_sgd_with_momentum_to_adam(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    config["momentum"] = 0.9
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    # No momentum answer - Adam doesn't prompt for it.
+    fake_prompts(
+        monkeypatch,
+        texts=["copied_exp", "0.01", "4", "300", "", "1"],
+        selects={"Optimizer:": "Adam"},
+    )
+
+    copy_config_path = copy_experiment("source_exp", root=tmp_path)
+
+    with open(copy_config_path) as f:
+        copy_config = json.load(f)
+
+    assert copy_config["optimizer"] == "Adam"
+    assert copy_config["learning_rate"] == 0.01
+    assert copy_config["seed"] == 1
+    # momentum belongs to SGD - carrying it over would make load_experiment raise
+    assert "momentum" not in copy_config
+
+
+def test_copy_experiment_momentum_defaults_to_the_source_momentum(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    config["momentum"] = 0.9
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    defaults = []
+    class FakeAnswer:
+        def __init__(self, value):
+            self.value = value
+        def ask(self):
+            return self.value
+    texts = iter(["copied_exp", "0.9", "2.0", "4", "300", "", "1"])
+    def fake_text(message, *a, **k):
+        defaults.append((message, k.get("default")))
+        return FakeAnswer(next(texts))
+    monkeypatch.setattr(questionary, "text", fake_text)
+    monkeypatch.setattr(questionary, "select", lambda *a, **k: FakeAnswer(k.get("default")))
+
+    copy_config_path = copy_experiment("source_exp", root=tmp_path)
+
+    assert ("Momentum (0 = plain SGD):", "0.9") in defaults
+    with open(copy_config_path) as f:
+        assert json.load(f)["momentum"] == 0.9
+
+
+def test_copy_experiment_keeps_adam_betas_and_eps(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    config.update(optimizer="Adam", learning_rate=0.01, betas=[0.9, 0.99], eps=1e-7)
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    fake_prompts(monkeypatch, texts=["copied_exp", "0.01", "4", "300", "", "1"])
+
+    copy_config_path = copy_experiment("source_exp", root=tmp_path)
+
+    with open(copy_config_path) as f:
+        copy_config = json.load(f)
+
+    assert copy_config["optimizer"] == "Adam"
+    assert copy_config["betas"] == [0.9, 0.99]
+    assert copy_config["eps"] == 1e-7
+
+
+def test_copy_experiment_drops_adam_options_when_switching_to_sgd(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    config.update(optimizer="Adam", learning_rate=0.01, betas=[0.9, 0.99], eps=1e-7)
+    with open(config_path, "w") as f:
+        json.dump(config, f)
+
+    fake_prompts(
+        monkeypatch,
+        texts=["copied_exp", "0", "2.0", "4", "300", "", "1"],
+        selects={"Optimizer:": "SGD"},
+    )
+
+    copy_config_path = copy_experiment("source_exp", root=tmp_path)
+
+    with open(copy_config_path) as f:
+        copy_config = json.load(f)
+
+    assert copy_config["optimizer"] == "SGD"
+    assert "betas" not in copy_config
+    assert "eps" not in copy_config
+    assert "momentum" not in copy_config

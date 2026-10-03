@@ -11,7 +11,7 @@ from orbit.core.metrics import accuracy, accuracy_multiclass
 from orbit.nn.layers import Linear
 from orbit.nn.activations import Tanh, Sigmoid
 from orbit.nn.losses import MSE, CrossEntropy
-from orbit.nn.optimizers import SGD
+from orbit.nn.optimizers import SGD, Adam
 
 
 def test_build_dataset_xor_has_four_rows_of_two_features():
@@ -193,7 +193,7 @@ def test_build_optimizer_resolves_sgd_with_given_lr():
 
 def test_build_optimizer_unknown_name_raises():
     with pytest.raises(ValueError):
-        build_optimizer("Adam", [], lr=0.01)
+        build_optimizer("RMSprop", [], lr=0.01)
 
 
 def test_build_accuracy_fn_none_task_returns_none():
@@ -523,3 +523,79 @@ def test_load_experiment_regression_r2_tracks_r2_history():
     assert len(results.accuracy_history) == config["epochs"]
     assert results.hyperparams["task"] == "regression_r2"
     assert "accuracy_tolerance" not in results.hyperparams
+
+
+def test_build_optimizer_resolves_adam_with_given_options():
+    model = build_model([{"type": "Linear", "in_features": 2, "neurons": 1}])
+    optimizer = build_optimizer("Adam", model.parameters(), lr=0.01, betas=[0.8, 0.99], eps=1e-6)
+
+    assert isinstance(optimizer, Adam)
+    assert optimizer.lr == 0.01
+    # JSON stores betas as a list; the optimizer gets a tuple
+    assert optimizer.betas == (0.8, 0.99)
+    assert optimizer.eps == 1e-6
+
+
+def test_build_optimizer_adam_defaults():
+    optimizer = build_optimizer("Adam", [], lr=0.001)
+
+    assert optimizer.betas == (0.9, 0.999)
+    assert optimizer.eps == 1e-8
+
+
+def test_build_optimizer_passes_momentum_to_sgd():
+    optimizer = build_optimizer("SGD", [], lr=0.1, momentum=0.9)
+
+    assert isinstance(optimizer, SGD)
+    assert optimizer.momentum == 0.9
+
+
+def test_build_optimizer_rejects_option_for_other_optimizer():
+    with pytest.raises(ValueError, match="momentum"):
+        build_optimizer("Adam", [], lr=0.01, momentum=0.9)
+    with pytest.raises(ValueError, match="betas"):
+        build_optimizer("SGD", [], lr=0.01, betas=[0.9, 0.999])
+
+
+def test_load_experiment_without_optimizer_options_is_plain_sgd():
+    experiment = load_experiment(_seeded_config(seed=1))
+
+    assert isinstance(experiment.optimizer, SGD)
+    assert experiment.optimizer.momentum == 0.0
+
+
+def test_load_experiment_passes_momentum_through():
+    config = _seeded_config(seed=1)
+    config["momentum"] = 0.9
+
+    experiment = load_experiment(config)
+
+    assert experiment.optimizer.momentum == 0.9
+
+
+def test_load_experiment_passes_adam_options_through():
+    config = _seeded_config(seed=1)
+    config.update(optimizer="Adam", learning_rate=0.01, betas=[0.9, 0.99], eps=1e-7)
+
+    experiment = load_experiment(config)
+
+    assert isinstance(experiment.optimizer, Adam)
+    assert experiment.optimizer.betas == (0.9, 0.99)
+    assert experiment.optimizer.eps == 1e-7
+
+
+def test_load_experiment_momentum_on_adam_raises():
+    config = _seeded_config(seed=1)
+    config.update(optimizer="Adam", momentum=0.9)
+
+    with pytest.raises(ValueError):
+        load_experiment(config)
+
+
+def test_load_experiment_trains_xor_with_adam():
+    config = _seeded_config(seed=42)
+    config.update(optimizer="Adam", learning_rate=0.01, epochs=2000)
+
+    results = load_experiment(config).run()
+
+    assert results.final_loss < 0.01

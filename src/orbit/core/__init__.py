@@ -18,7 +18,11 @@ from orbit.core.metrics import (
     metric_label,
     format_metric,
 )
-from orbit.core.config import load_experiment
+# Deliberately no `from orbit.core.config import load_experiment` here: config
+# is the glue layer that pulls in orbit.nn/orbit.storage, and both of those
+# import orbit.core back, so re-exporting it from this bottom-layer package
+# made `import orbit.nn` (or anything importing it first) a circular import.
+# Import it from orbit.core.config directly.
 # from orbit.core.autograd import accumulate_gradient, build_topological_order, backward
 
 
@@ -39,5 +43,4 @@ __all__ = [
     "r2_score",
     "metric_label",
     "format_metric",
-    "load_experiment"
 ]

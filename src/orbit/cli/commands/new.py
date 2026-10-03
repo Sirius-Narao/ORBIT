@@ -136,8 +136,9 @@ def create_experiment() -> pathlib.Path:
             default=str(DEFAULT_ACCURACY_TOLERANCE),
         )
     optimizer = questionary.select("Optimizer:", choices=list(OPTIMIZER_REGISTRY.keys()), style=PROMPT_STYLE).ask()
+    momentum = _ask_momentum(optimizer)
     normalize = questionary.select("Normalize inputs?", choices=NORMALIZE_CHOICES, style=PROMPT_STYLE).ask()
-    learning_rate = _ask_float("Learning rate:")
+    learning_rate = _ask_float("Learning rate:", default=DEFAULT_LEARNING_RATES.get(optimizer, ""))
     batch_size = _ask_optional_int("Batch size (blank = default 32):")
     epochs = _ask_int("Epochs:")
     test_split = _ask_optional_float("Test split fraction (0-1, blank = no split):")
@@ -165,6 +166,8 @@ def create_experiment() -> pathlib.Path:
         config["accuracy_tolerance"] = accuracy_tolerance
     if normalize != "none":
         config["normalize"] = normalize
+    if momentum:
+        config["momentum"] = momentum
 
     _print_config_summary(config)
 
@@ -178,6 +181,32 @@ def create_experiment() -> pathlib.Path:
     success(f"Saved experiment config to {config_path}")
     console.print()
     return config_path
+
+
+# Pre-filled learning rate per optimizer - Adam's step size is roughly
+# lr per weight regardless of gradient scale, so its conventional default
+# (1e-3) is safe; plain SGD has no such universal value, so it stays blank.
+DEFAULT_LEARNING_RATES = {"Adam": "0.001"}
+
+
+def _ask_momentum(optimizer, default="0"):
+    """Momentum prompt, SGD only - returns None for every other optimizer."""
+    if optimizer != "SGD":
+        return None
+    return _ask_float("Momentum (0 = plain SGD):", default=default)
+
+
+def _format_optimizer(config: dict) -> str:
+    """e.g. "SGD", "SGD (momentum 0.9)", "Adam", "Adam (betas 0.9, 0.99, eps 1e-07)"."""
+    details = []
+    if config.get("momentum"):
+        details.append(f"momentum {config['momentum']}")
+    if "betas" in config:
+        details.append("betas " + ", ".join(str(b) for b in config["betas"]))
+    if "eps" in config:
+        details.append(f"eps {config['eps']}")
+    name = config["optimizer"]
+    return f"{name} ({', '.join(details)})" if details else name
 
 
 def _format_model_summary(layers: list) -> str:
@@ -203,7 +232,7 @@ def _print_config_summary(config: dict) -> None:
     if task == "regression_tolerance":
         task += f" (±{config.get('accuracy_tolerance', DEFAULT_ACCURACY_TOLERANCE)})"
     table.add_row("Task", task)
-    table.add_row("Optimizer", config["optimizer"])
+    table.add_row("Optimizer", _format_optimizer(config))
     table.add_row("Learning rate", str(config["learning_rate"]))
     table.add_row("Batch size", str(config.get("batch_size", "32 (default)")))
     table.add_row("Epochs", str(config["epochs"]))

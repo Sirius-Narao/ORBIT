@@ -18,7 +18,7 @@ from orbit.nn import Sequential
 from orbit.nn.layers import Linear
 from orbit.nn.activations import ReLU, Tanh, Sigmoid, Softmax
 from orbit.nn.losses import MSE, CrossEntropy
-from orbit.nn.optimizers import SGD
+from orbit.nn.optimizers import SGD, Adam
 from orbit.storage import dataset_exists, dataset_dir, load_dataset_manifest, list_imported_dataset_names
 
 # --- dataset registry -------------------------------------------------------
@@ -135,17 +135,36 @@ def build_loss(name: str):
     return LOSS_REGISTRY[name]()
 
 # --- optimizer registry -------------------------------------------------------
-# Only SGD exists as an Optimizer subclass right now (v1 scope) - kept as a
-# registry rather than an if-check so adding Adam later is a one-line change.
+# OPTIMIZER_OPTIONS lists the optional config fields each optimizer accepts
+# (flat keys in experiment.json, all with standard defaults when absent):
+# "momentum" for SGD (default 0 = plain SGD), "betas"/"eps" for Adam
+# (default (0.9, 0.999) / 1e-8).
 
 OPTIMIZER_REGISTRY = {
     "SGD": SGD,
+    "Adam": Adam,
 }
 
-def build_optimizer(name: str, parameters, lr: float):
+OPTIMIZER_OPTIONS = {
+    "SGD": ("momentum",),
+    "Adam": ("betas", "eps"),
+}
+
+ALL_OPTIMIZER_OPTIONS = tuple(
+    option for options in OPTIMIZER_OPTIONS.values() for option in options
+)
+
+def build_optimizer(name: str, parameters, lr: float, **options):
     if name not in OPTIMIZER_REGISTRY:
         raise ValueError(f"Unknown optimizer: {name!r}")
-    return OPTIMIZER_REGISTRY[name](parameters, lr=lr)
+    # An option meant for a different optimizer (e.g. "momentum" on Adam)
+    # would otherwise be silently ignored - fail loudly instead.
+    for option in options:
+        if option not in OPTIMIZER_OPTIONS[name]:
+            raise ValueError(f"Optimizer {name!r} does not accept option {option!r}")
+    if "betas" in options:
+        options["betas"] = tuple(options["betas"])  # JSON stores it as a list
+    return OPTIMIZER_REGISTRY[name](parameters, lr=lr, **options)
 
 # --- task registry -------------------------------------------------------
 # Maps a config's optional "task" field to the accuracy function Trainer
@@ -223,7 +242,10 @@ def load_experiment(config: dict) -> Experiment:
 
     model = build_model(config["model"], train_dataset)
     loss_fn = build_loss(config["loss"])
-    optimizer = build_optimizer(config["optimizer"], model.parameters(), config["learning_rate"])
+    optimizer_options = {k: config[k] for k in ALL_OPTIMIZER_OPTIONS if k in config}
+    optimizer = build_optimizer(
+        config["optimizer"], model.parameters(), config["learning_rate"], **optimizer_options
+    )
     dataloader = DataLoader(train_dataset, batch_size=config.get("batch_size", 32))
     test_dataloader = (
         DataLoader(test_dataset, batch_size=config.get("batch_size", 32), shuffle=False)

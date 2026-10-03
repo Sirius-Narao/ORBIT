@@ -10,7 +10,8 @@ from orbit.storage import (
     checkpoint_exists,
     load_checkpoint,
 )
-from orbit.core import load_experiment, Results
+from orbit.core import Results
+from orbit.core.config import load_experiment
 from orbit.ui import console, warning
 
 

@@ -3,6 +3,7 @@ import pathlib
 
 from rich.table import Table
 
+from orbit.cli.commands.new import _format_optimizer
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
 from orbit.ui import console, success, warning
 from orbit.visualization import plot_loss_comparison
@@ -85,7 +86,7 @@ def compare_experiments(
             name,
             config["dataset"],
             config["loss"],
-            config["optimizer"],
+            _format_optimizer(config),
             str(config["learning_rate"]),
             str(config.get("seed", "none")),
             str(config.get("batch_size", "32 (default)")),
