@@ -241,3 +241,42 @@ def test_run_matches_calling_trainer_directly():
     results = experiment.run()
 
     assert np.isclose(results.final_loss, loss_a)
+
+
+def test_run_records_weight_snapshots_from_epoch_zero():
+    """
+    lr=0.01 so the weight actually moves: the epoch-0 snapshot must be the
+    initial weight, and the last one the model's final weight.
+    """
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    optimizer = SGD(model.parameters(), lr=0.01)
+    experiment = Experiment(model, MSE(), optimizer, make_dataloader(batch_size=3), epochs=4)
+
+    experiment.run()
+
+    snapshots = experiment.snapshots
+    assert snapshots.epochs == [0, 1, 2, 3, 4]
+    assert np.isnan(snapshots.losses[0])
+    assert snapshots.params["weight"][0][0, 0] == 2.0
+    assert np.array_equal(snapshots.params["weight"][-1], model.weight.data)
+
+
+def test_run_skips_snapshots_for_a_model_over_the_parameter_limit(monkeypatch, capsys):
+    monkeypatch.setattr("orbit.core.experiment.MAX_SNAPSHOT_PARAMETERS", 1)
+    model = make_fixed_linear(weight=2.0, bias=0.0)  # 2 parameters
+    experiment = Experiment(model, MSE(), SGD(model.parameters(), lr=0.0), make_dataloader(batch_size=3), epochs=2)
+
+    experiment.run()
+
+    assert experiment.snapshots is None
+    assert "not recording weight snapshots" in capsys.readouterr().out
+
+
+def test_run_passes_extra_on_epoch_end_callback():
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    experiment = Experiment(model, MSE(), SGD(model.parameters(), lr=0.0), make_dataloader(batch_size=3), epochs=3)
+    epochs = []
+
+    experiment.run(on_epoch_end=lambda epoch, m, loss: epochs.append(epoch))
+
+    assert epochs == [1, 2, 3]

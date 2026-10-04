@@ -1,4 +1,4 @@
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, save_results, save_checkpoint
+from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, save_results, save_training_artifacts
 from orbit.core import Results
 from orbit.core.config import load_experiment
 import json
@@ -17,7 +17,7 @@ def run_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> Results:
 
     results = experiment.run()
     save_results(results = results, path = exp_dir/"results"/"results.json")
-    save_checkpoint(name, experiment.model, root=root)
+    save_training_artifacts(name, experiment, root=root)
 
     return results
 

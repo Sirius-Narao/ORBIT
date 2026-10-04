@@ -440,3 +440,21 @@ def test_fit_records_duration_seconds(monkeypatch):
     trainer.fit(model, loss_fn, optimizer, dataloader, epochs=5)
 
     assert trainer.duration_seconds == 0.5
+
+
+def test_fit_calls_on_epoch_end_after_every_epoch_with_that_epochs_loss():
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    X = np.array([[1.0], [2.0], [3.0]])
+    dataloader = DataLoader(TensorDataset(X, np.zeros((3, 1))), batch_size=2, shuffle=False)
+    calls = []
+
+    trainer = Trainer()
+    trainer.fit(
+        model, MSE(), SGD(model.parameters(), lr=0.0), dataloader, epochs=3,
+        on_epoch_end=lambda epoch, m, loss: calls.append((epoch, m is model, loss)),
+    )
+
+    # lr=0 keeps every epoch's loss at 56/3 (see test_fit_weights_epoch_average_by_batch_size).
+    assert [epoch for epoch, _, _ in calls] == [1, 2, 3]
+    assert all(same_model for _, same_model, _ in calls)
+    assert [loss for _, _, loss in calls] == trainer.history

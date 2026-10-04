@@ -3,6 +3,7 @@ from orbit.nn import Module
 from orbit.nn.losses import Loss
 from orbit.nn.optimizers import Optimizer
 from orbit.nn.training import Trainer
+from orbit.nn.training.snapshots import MAX_SNAPSHOT_PARAMETERS, SnapshotRecorder, parameter_count
 from orbit.core import DataLoader, Results
 
 class Experiment:
@@ -35,8 +36,38 @@ class Experiment:
         self.accuracy_tolerance = accuracy_tolerance
 
         self.trainer = Trainer()
+        # Weight snapshots from the last run() (a SnapshotRecorder), or None
+        # if it hasn't run or the model was too big to record - see
+        # _start_snapshots. Kept off Results so results.json stays small;
+        # the CLI saves them next to the checkpoint instead.
+        self.snapshots = None
 
-    def run(self, skip_test: bool = False) -> Results:
+    def _start_snapshots(self) -> Optional[SnapshotRecorder]:
+        count = parameter_count(self.model)
+        if count > MAX_SNAPSHOT_PARAMETERS:
+            from orbit.ui import warning
+            warning(
+                f"Model has {count:,} parameters - not recording weight snapshots "
+                f"(limit {MAX_SNAPSHOT_PARAMETERS:,}), so training can't be animated."
+            )
+            return None
+        recorder = SnapshotRecorder(self.epochs)
+        recorder.record(0, self.model, float("nan"))
+        return recorder
+
+    def run(self, skip_test: bool = False, on_epoch_end=None) -> Results:
+        """
+        on_epoch_end: optional extra callable(epoch, model, avg_loss) run
+        after every epoch, alongside the snapshot recorder (e.g. the live
+        terminal view).
+        """
+        self.snapshots = self._start_snapshots()
+        callbacks = [c for c in (self.snapshots, on_epoch_end) if c is not None]
+
+        def after_epoch(epoch, model, avg_loss):
+            for callback in callbacks:
+                callback(epoch, model, avg_loss)
+
         final_loss = self.trainer.fit(
             self.model,
             self.loss_fn,
@@ -46,6 +77,7 @@ class Experiment:
             verbose=self.verbose,
             log_every=self.log_every,
             accuracy_fn=self.accuracy_fn,
+            on_epoch_end=after_epoch if callbacks else None,
         )
 
         test_loss, test_accuracy = None, None

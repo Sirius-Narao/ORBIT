@@ -145,7 +145,12 @@ class Trainer:
         return avg_loss, avg_accuracy
 
     def fit(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int,
-            verbose: bool = False, log_every: int = 100, accuracy_fn=None):
+            verbose: bool = False, log_every: int = 100, accuracy_fn=None, on_epoch_end=None):
+        """
+        on_epoch_end: optional callable(epoch, model, avg_loss), called after
+        every epoch (epochs count from 1) - how weight snapshots and the live
+        terminal view watch training without the Trainer knowing about either.
+        """
 
         start = time.time()
         if accuracy_fn is not None:
@@ -153,7 +158,8 @@ class Trainer:
 
         if verbose and is_tty():
             avg_loss = self._fit_with_progress_bar(
-                model, loss_fn, optimizer, dataloader, epochs, accuracy_fn=accuracy_fn
+                model, loss_fn, optimizer, dataloader, epochs, accuracy_fn=accuracy_fn,
+                on_epoch_end=on_epoch_end,
             )
             self.duration_seconds = time.time() - start
             return avg_loss
@@ -171,13 +177,15 @@ class Trainer:
             self.gradient_norm_history.append(grad_norm)
             if accuracy_fn is not None:
                 self.accuracy_history.append(avg_accuracy)
+            if on_epoch_end is not None:
+                on_epoch_end(e, model, avg_loss)
 
         self.duration_seconds = time.time() - start
         return avg_loss
 
     def _fit_with_progress_bar(
         self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int,
-        accuracy_fn=None
+        accuracy_fn=None, on_epoch_end=None
     ) -> float:
         avg_loss = None
         console.print()
@@ -192,7 +200,7 @@ class Trainer:
             console=console,
         ) as progress:
             task = progress.add_task("train", total=epochs, loss=float("nan"))
-            for _ in range(epochs):
+            for e in range(1, epochs + 1):
                 avg_loss, grad_norm, avg_accuracy = self._run_epoch(
                     model, loss_fn, optimizer, dataloader, accuracy_fn=accuracy_fn
                 )
@@ -200,6 +208,8 @@ class Trainer:
                 self.gradient_norm_history.append(grad_norm)
                 if accuracy_fn is not None:
                     self.accuracy_history.append(avg_accuracy)
+                if on_epoch_end is not None:
+                    on_epoch_end(e, model, avg_loss)
                 progress.update(task, advance=1, loss=avg_loss)
         console.print()
 

@@ -46,3 +46,34 @@ def test_load_checkpoint_raises_file_not_found_when_missing(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         load_checkpoint("does_not_exist", model, root=tmp_path)
+
+
+def test_snapshots_round_trip(tmp_path):
+    from orbit.nn.training.snapshots import SnapshotRecorder
+    from orbit.storage import load_snapshots, save_snapshots, snapshots_exist
+
+    model = make_model()
+    recorder = SnapshotRecorder(epochs=3)
+    recorder.record(0, model, float("nan"))
+    for epoch in range(1, 4):
+        for param in model.parameters():
+            param.data = param.data + 1.0
+        recorder.record(epoch, model, 1.0 / epoch)
+
+    assert not snapshots_exist("xor_test", root=tmp_path)
+    save_snapshots("xor_test", recorder, root=tmp_path)
+    loaded = load_snapshots("xor_test", root=tmp_path)
+
+    assert snapshots_exist("xor_test", root=tmp_path)
+    assert list(loaded["epochs"]) == [0, 1, 2, 3]
+    assert np.isnan(loaded["loss"][0]) and np.isclose(loaded["loss"][3], 1 / 3)
+    assert set(loaded["params"]) == {name for name, _ in model.named_parameters()}
+    assert loaded["params"]["0.weight"].shape == (4, 2, 8)
+    assert np.array_equal(loaded["params"]["0.weight"][-1], model._modules["0"].weight.data)
+
+
+def test_load_snapshots_raises_when_missing(tmp_path):
+    from orbit.storage import load_snapshots
+
+    with pytest.raises(FileNotFoundError):
+        load_snapshots("xor_test", root=tmp_path)

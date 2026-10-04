@@ -114,7 +114,14 @@ Opened 2026-09-20 by explicit user requirement (not a code-driven gap like the d
 
 Opened 2026-10-04 by explicit user direction: ORBIT's most important job is showing what's inside a network that's a black box to most people. The full plan has six phases, each its own commit:
 1. `orbit network`: a PNG diagram of the model (nodes, links, activations). **Done**, see the command surface.
-2. Weight snapshots during training plus an `on_epoch_end` callback on `Trainer.fit`. Planned.
+2. Weight snapshots during training plus an `on_epoch_end` callback on `Trainer.fit`. **Done.**
+   - `Trainer.fit(..., on_epoch_end=None)` calls `callable(epoch, model, avg_loss)` after each epoch (counting from 1) on both the progress-bar and plain paths.
+   - `nn/training/snapshots.py`'s `SnapshotRecorder(epochs)` copies `named_parameters()` at epoch 0 (initial weights, loss NaN), then every `snapshot_interval(epochs) = max(1, epochs // MAX_SNAPSHOTS)` epochs (`MAX_SNAPSHOTS = 100`), plus always the last epoch.
+   - `Experiment.run(skip_test=False, on_epoch_end=None)` creates one per run as `experiment.snapshots`. It is skipped (left `None`, with a warning) above `MAX_SNAPSHOT_PARAMETERS = 200_000` parameters. Any extra `on_epoch_end` is chained after the recorder.
+   - Copying weights draws nothing from the RNG, so seeded runs are unchanged, and the reproducibility tests pass untouched.
+   - Snapshots are kept off `Results`. `storage/artifacts.py` saves them to `checkpoints/history.npz`: one stacked `(S, *shape)` array per parameter name, plus `_epochs`/`_loss`. Helpers are `save_snapshots`/`load_snapshots` (returns `{"epochs", "loss", "params"}`), `snapshots_exist`, `snapshots_path` and `delete_snapshots`.
+   - `save_training_artifacts(name, experiment, root)` replaces the bare `save_checkpoint` call in `run.py`/`train.py`. It saves the checkpoint plus the history, or deletes a stale history when none was recorded, so the history always matches the checkpoint.
+   - Tests: `tests/nn/test_snapshots.py`, plus added cases in `test_trainer.py`, `tests/core/test_experiment.py`, `tests/storage/test_artifacts.py` and `tests/cli/test_run.py`.
 3. `orbit animate`: a training animation (network plus a loss marker) as GIF by default, or MP4 via ffmpeg / the optional `imageio-ffmpeg` extra, with `--show`. Planned.
 4. `orbit boundary`: the decision boundary for 2-input datasets, with `--animate`. Planned.
 5. `orbit health`: per-layer activation histograms and dead/saturated fractions, plus per-layer gradient norms. Planned.

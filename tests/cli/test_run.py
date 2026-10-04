@@ -45,3 +45,27 @@ def test_run_experiment_returns_results_and_saves_them(tmp_path):
 def test_run_experiment_missing_experiment_raises_file_not_found(tmp_path):
     with pytest.raises(FileNotFoundError):
         run_experiment("does_not_exist", root=tmp_path)
+
+
+def test_run_experiment_saves_training_history(tmp_path):
+    from orbit.storage import load_snapshots
+
+    write_experiment_config(tmp_path, "xor_test", epochs=5)
+
+    run_experiment("xor_test", root=tmp_path)
+
+    history = load_snapshots("xor_test", root=tmp_path)
+    assert list(history["epochs"]) == [0, 1, 2, 3, 4, 5]
+
+
+def test_run_experiment_removes_a_stale_history_when_none_is_recorded(tmp_path, monkeypatch):
+    from orbit.storage import snapshots_exist
+
+    write_experiment_config(tmp_path, "xor_test")
+    run_experiment("xor_test", root=tmp_path)
+    assert snapshots_exist("xor_test", root=tmp_path)
+
+    monkeypatch.setattr("orbit.core.experiment.MAX_SNAPSHOT_PARAMETERS", 0)
+    run_experiment("xor_test", root=tmp_path)
+
+    assert not snapshots_exist("xor_test", root=tmp_path)
