@@ -80,8 +80,12 @@ class Experiment:
             on_epoch_end=after_epoch if callbacks else None,
         )
 
+        # A diverged model's test loss would just be NaN too - leave the test
+        # metrics unset (None) instead, so rankings list the run as
+        # incomplete rather than comparing a meaningless number.
+        diverged = self.trainer.diverged_at_epoch is not None
         test_loss, test_accuracy = None, None
-        if not skip_test and self.test_dataloader is not None:
+        if not skip_test and not diverged and self.test_dataloader is not None:
             test_loss, test_accuracy = self.trainer.evaluate(
                 self.model, self.loss_fn, self.test_dataloader, accuracy_fn=self.accuracy_fn
             )
@@ -105,4 +109,5 @@ class Experiment:
             test_loss = test_loss,
             test_accuracy = test_accuracy,
             layer_gradient_norm_history = self.trainer.layer_gradient_norm_history,
+            diverged_at_epoch = self.trainer.diverged_at_epoch,
             )

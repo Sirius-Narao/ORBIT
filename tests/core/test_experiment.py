@@ -280,3 +280,18 @@ def test_run_passes_extra_on_epoch_end_callback():
     experiment.run(on_epoch_end=lambda epoch, m, loss: epochs.append(epoch))
 
     assert epochs == [1, 2, 3]
+
+
+
+def test_run_skips_test_evaluation_after_divergence():
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    experiment = Experiment(
+        model, MSE(), SGD(model.parameters(), lr=1e100), make_dataloader(batch_size=3), epochs=10,
+        test_dataloader=make_dataloader(batch_size=3),
+    )
+
+    results = experiment.run()
+
+    assert results.diverged_at_epoch == 3
+    assert results.test_loss is None
+    assert results.test_accuracy is None

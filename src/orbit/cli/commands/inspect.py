@@ -43,6 +43,11 @@ def inspect_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None
         if results.test_accuracy is not None:
             message += f", test {name} {format_metric(results.test_accuracy, task)}"
         info(message)
+        if results.diverged_at_epoch is not None:
+            warning(
+                f"Diverged at epoch {results.diverged_at_epoch} - the loss became inf/NaN and "
+                "training stopped early (the results above cover the epochs before it)."
+            )
     else:
         info("Not run yet.")
     console.print()

@@ -3,7 +3,7 @@ import sys
 
 from orbit.cli.commands.init import init_project
 from orbit.cli.commands.new import create_experiment
-from orbit.cli.commands.run import run_experiment
+from orbit.cli.commands.run import DIVERGENCE_HINT, run_experiment
 from orbit.cli.commands.train import train_experiment
 from orbit.cli.commands.test import test_experiment
 from orbit.cli.commands.list import list_experiments
@@ -47,9 +47,9 @@ def _warn_if_stalled(results) -> None:
     too few epochs. This can't tell you *which* cause it is, just that the
     result is suspicious and worth a second look.
     """
-    first_loss = results.loss_history[0]
-    if len(results.loss_history) < 2 or first_loss == 0:
+    if len(results.loss_history) < 2 or results.loss_history[0] == 0:
         return
+    first_loss = results.loss_history[0]
 
     improvement = (first_loss - results.final_loss) / first_loss
     if improvement < STALLED_RUN_IMPROVEMENT_THRESHOLD:
@@ -59,6 +59,25 @@ def _warn_if_stalled(results) -> None:
             "this dataset, the learning rate may be too low, or it may "
             "need more epochs."
         )
+
+
+def _report_training(results, show_test_metrics: bool = True) -> None:
+    """
+    The one-line outcome of orbit run/train: the final loss, or - if the
+    loss blew up to inf/NaN and training stopped early - what happened and
+    what to try instead (the stalled-run check is meaningless then).
+    """
+    diverged_at = getattr(results, "diverged_at_epoch", None)
+    if diverged_at is not None:
+        warning(
+            f"Training diverged at epoch {diverged_at} - the loss became inf/NaN, "
+            f"so training stopped early. {DIVERGENCE_HINT}"
+        )
+        return
+    success(f"Final loss: {results.final_loss}")
+    if show_test_metrics:
+        _report_test_metrics(results)
+    _warn_if_stalled(results)
 
 
 def _report_test_metrics(results) -> None:
@@ -323,14 +342,11 @@ def _dispatch(args: argparse.Namespace, in_repl: bool = False) -> None:
             config_path = create_experiment()
             name = config_path.parent.name
         results = run_experiment(name, watch=args.watch)
-        success(f"Final loss: {results.final_loss}")
-        _report_test_metrics(results)
-        _warn_if_stalled(results)
+        _report_training(results)
         console.print()
     elif args.command == "train":
         results = train_experiment(args.name, watch=args.watch)
-        success(f"Final loss: {results.final_loss}")
-        _warn_if_stalled(results)
+        _report_training(results, show_test_metrics=False)
         console.print()
     elif args.command == "test":
         results = test_experiment(args.name)

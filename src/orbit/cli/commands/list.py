@@ -68,8 +68,9 @@ def _print_experiments_table(names: list, root: pathlib.Path) -> None:
                 else "-"
             )
             test_loss = f"{results.test_loss:.4f}" if results.test_loss is not None else "-"
+            status = "done" if results.diverged_at_epoch is None else f"diverged (epoch {results.diverged_at_epoch})"
             table.add_row(
-                name, "done", f"{results.final_loss:.4f}", test_loss, str(len(results.loss_history)),
+                name, status, f"{results.final_loss:.4f}", test_loss, str(len(results.loss_history)),
                 duration, grad_norm, accuracy,
             )
         else:

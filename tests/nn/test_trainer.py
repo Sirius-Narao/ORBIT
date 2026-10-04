@@ -489,3 +489,97 @@ def test_fit_layer_gradient_norm_has_one_entry_per_linear_layer():
 
     assert list(trainer.layer_gradient_norm_history) == ["0.weight", "2.weight"]
     assert all(len(norms) == 3 for norms in trainer.layer_gradient_norm_history.values())
+
+
+def _assert_no_runtime_warnings(fn):
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        return fn()
+
+
+def test_fit_stops_at_the_first_epoch_whose_loss_overflows():
+    """
+    Same fixture as test_fit_weights_epoch_average_by_batch_size (weight=2,
+    X=[1,2,3], targets 0, one batch of 3) but with lr=1e100:
+
+    Epoch 1: loss = (4 + 16 + 36)/3 = 56/3, finite. dL/dw = 56/3 and
+             dL/db = 8, so the step sends w to about -1.9e101.
+    Epoch 2: predictions ~1e101, loss ~1e203 - still finite (< ~1e308).
+             The gradient is ~1e102, so w jumps to ~1e202.
+    Epoch 3: predictions ~1e202, squared ~1e404 -> overflows to inf.
+
+    So training must stop at epoch 3, keeping only the 2 finite epochs,
+    without numpy printing an overflow RuntimeWarning on the way.
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    dataloader = DataLoader(TensorDataset(X, np.zeros((3, 1))), batch_size=3, shuffle=False)
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    trainer = Trainer()
+
+    final = _assert_no_runtime_warnings(
+        lambda: trainer.fit(model, MSE(), SGD(model.parameters(), lr=1e100), dataloader, epochs=10)
+    )
+
+    assert trainer.diverged_at_epoch == 3
+    assert np.isnan(final)
+    assert len(trainer.history) == 2
+    assert np.isclose(trainer.history[0], 56 / 3)
+    assert len(trainer.gradient_norm_history) == 2
+    assert all(np.all(np.isfinite(param.data)) for param in model.parameters())
+
+
+def test_fit_stops_before_the_update_when_the_gradient_is_not_finite(monkeypatch):
+    import orbit.nn.training.trainer as trainer_module
+
+    norms = iter([1.0, float("inf")])  # epoch 1 fine, epoch 2's gradient blows up
+    monkeypatch.setattr(trainer_module, "_gradient_norm", lambda model: next(norms))
+    X = np.array([[1.0], [2.0], [3.0]])
+    dataloader = DataLoader(TensorDataset(X, np.zeros((3, 1))), batch_size=3, shuffle=False)
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    trainer = Trainer()
+
+    trainer.fit(model, MSE(), SGD(model.parameters(), lr=0.01), dataloader, epochs=5)
+    weight_after_epoch_1 = 2.0 - 0.01 * (56 / 3)
+
+    assert trainer.diverged_at_epoch == 2
+    # Epoch 2's step was never taken.
+    assert np.isclose(model.weight.data[0, 0], weight_after_epoch_1)
+
+
+def test_fit_does_not_call_on_epoch_end_for_the_diverged_epoch():
+    X = np.array([[1.0], [2.0], [3.0]])
+    dataloader = DataLoader(TensorDataset(X, np.zeros((3, 1))), batch_size=3, shuffle=False)
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    epochs = []
+
+    Trainer().fit(model, MSE(), SGD(model.parameters(), lr=1e100), dataloader, epochs=10,
+                  on_epoch_end=lambda epoch, m, loss: epochs.append(epoch))
+
+    assert epochs == [1, 2]
+
+
+def test_fit_with_progress_bar_also_stops_on_divergence(monkeypatch):
+    import orbit.nn.training.trainer as trainer_module
+
+    monkeypatch.setattr(trainer_module, "is_tty", lambda: True)
+    X = np.array([[1.0], [2.0], [3.0]])
+    dataloader = DataLoader(TensorDataset(X, np.zeros((3, 1))), batch_size=3, shuffle=False)
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    trainer = Trainer()
+
+    final = trainer.fit(model, MSE(), SGD(model.parameters(), lr=1e100), dataloader, epochs=10, verbose=True)
+
+    assert trainer.diverged_at_epoch == 3
+    assert np.isnan(final)
+
+
+def test_fit_leaves_diverged_at_epoch_unset_for_a_normal_run():
+    X = np.array([[1.0], [2.0], [3.0]])
+    dataloader = DataLoader(TensorDataset(X, np.zeros((3, 1))), batch_size=3, shuffle=False)
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    trainer = Trainer()
+
+    trainer.fit(model, MSE(), SGD(model.parameters(), lr=0.01), dataloader, epochs=3)
+
+    assert trainer.diverged_at_epoch is None

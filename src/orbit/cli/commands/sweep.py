@@ -9,7 +9,7 @@ from rich.table import Table
 from rich.text import Text
 
 from orbit.cli.commands.plot import plot_experiments
-from orbit.cli.commands.run import run_experiment
+from orbit.cli.commands.run import DIVERGENCE_HINT, run_experiment
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir
 from orbit.cli.commands.ranking_display import (
     BEST_MARK,
@@ -225,7 +225,7 @@ def start_sweep(
         return None
 
     total = len(sweep["runs"])
-    counts = {"done": 0, "failed": 0, "skipped": 0, "missing": 0}
+    counts = {"done": 0, "diverged": 0, "failed": 0, "skipped": 0, "missing": 0}
     console.print()
     for i, run in enumerate(sweep["runs"], start=1):
         exp_dir = experiment_dir(run["name"], root=root)
@@ -244,6 +244,10 @@ def start_sweep(
             warning(f"{run['name']} failed: {e}")
             counts["failed"] += 1
             continue
+        if results.diverged_at_epoch is not None:
+            warning(f"{run['name']}: diverged at epoch {results.diverged_at_epoch} (loss became inf/NaN).")
+            counts["diverged"] += 1
+            continue
         success(f"{run['name']}: final loss {results.final_loss:.4f}")
         counts["done"] += 1
 
@@ -252,9 +256,13 @@ def start_sweep(
         f"Sweep {name}: {counts['done']} trained, {counts['skipped']} already done, "
         f"{counts['failed']} failed"
     )
+    if counts["diverged"]:
+        summary += f", {counts['diverged']} diverged"
     if counts["missing"]:
         summary += f", {counts['missing']} missing"
-    (warning if counts["failed"] or counts["missing"] else success)(summary)
+    (warning if counts["failed"] or counts["missing"] or counts["diverged"] else success)(summary)
+    if counts["diverged"]:
+        info(f"Diverged runs stopped early and rank last. {DIVERGENCE_HINT}")
     console.print()
     return counts
 
@@ -280,7 +288,7 @@ def sweep_status(
         table.add_row(
             row["run"],
             *(str(row["params"].get(f, "-")) for f in fields),
-            row["status"],
+            row["status"] if row["diverged_at_epoch"] is None else f"diverged (epoch {row['diverged_at_epoch']})",
             format_value(row["final_loss"], "final_loss", row["task"]),
         )
 

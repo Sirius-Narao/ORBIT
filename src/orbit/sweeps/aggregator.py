@@ -34,6 +34,7 @@ def collect_rows(sweep: dict, root: pathlib.Path = EXPERIMENTS_ROOT) -> list:
             "test_accuracy": None,
             "duration_seconds": None,
             "task": None,
+            "diverged_at_epoch": None,
         }
         if status == "done":
             results = load_results(experiment_dir(run["name"], root=root) / "results" / "results.json")
@@ -44,6 +45,7 @@ def collect_rows(sweep: dict, root: pathlib.Path = EXPERIMENTS_ROOT) -> list:
                 test_accuracy=results.test_accuracy,
                 duration_seconds=results.duration_seconds,
                 task=results.hyperparams.get("task"),
+                diverged_at_epoch=results.diverged_at_epoch,
             )
         rows.append(row)
     return rows

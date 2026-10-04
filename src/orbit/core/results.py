@@ -13,6 +13,7 @@ class Results:
         test_loss: Optional[float] = None,
         test_accuracy: Optional[float] = None,
         layer_gradient_norm_history: Optional[Dict[str, List[float]]] = None,
+        diverged_at_epoch: Optional[int] = None,
     ):
         self.name = name
         self.final_loss = final_loss
@@ -28,6 +29,10 @@ class Results:
         # {weight parameter name, e.g. "0.weight": per-epoch gradient norm};
         # None for results saved before it was tracked.
         self.layer_gradient_norm_history = layer_gradient_norm_history
+        # The epoch where the loss or gradients became inf/NaN and training
+        # stopped; None for a run that finished normally (or an old result).
+        # When set, final_loss is NaN and the histories end just before it.
+        self.diverged_at_epoch = diverged_at_epoch
 
     def __repr__(self):
         return f"Results(name={self.name!r}, final_loss={self.final_loss:.4f}, epochs={len(self.loss_history)})"
@@ -62,6 +67,7 @@ class Results:
                 if self.layer_gradient_norm_history is not None
                 else None
             ),
+            "diverged_at_epoch": int(self.diverged_at_epoch) if self.diverged_at_epoch is not None else None,
         }
 
     @classmethod

@@ -5,6 +5,11 @@ from orbit.cli.commands.watch import run_with_optional_watch
 import json
 import pathlib
 
+# What to try when a run diverges (its loss became inf/NaN) - shown by
+# orbit run/train and orbit sweep start.
+DIVERGENCE_HINT = 'Try a lower learning rate, the Adam optimizer, or "grad_clip" (e.g. 1.0).'
+
+
 def run_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT, watch: bool = False) -> Results:
     exp_dir = experiment_dir(name, root = root)
 

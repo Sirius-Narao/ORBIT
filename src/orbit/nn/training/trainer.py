@@ -64,16 +64,37 @@ class Trainer:
         self.gradient_norm_history = []
         self.layer_gradient_norm_history = {}
         self.accuracy_history = None
+        # The epoch whose loss or gradients became inf/NaN, if training
+        # diverged (see _run_epoch) - None for a run that finished normally.
+        self.diverged_at_epoch = None
 
     def _run_epoch(
         self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, accuracy_fn=None
     ):
+        """
+        One pass over dataloader, updating the model after every batch.
+        Returns (avg_loss, grad_norm, avg_accuracy), or (None, None, None)
+        if training diverged during the epoch.
+
+        Divergence: once steps are too large for the loss surface, each
+        update overshoots further than the last and the numbers grow
+        geometrically until they overflow float64 (~1e308) into inf, and
+        then into NaN (inf - inf, 0 * inf). From there every later value is
+        NaN too, so there is nothing left to learn - the epoch is abandoned
+        at the first non-finite loss (checked before backward()) or
+        gradient norm (checked before optimizer.step()). Stopping before
+        the update keeps the weights themselves finite, so the checkpoint
+        and the visualizations still work on a diverged run.
+        """
         total_loss = 0.0
         total_samples = 0
         predictions, targets = [], []
+        grad_norm = 0.0
         for X_batch, Y_batch in dataloader:
             y_pred = model(X_batch)
             loss = loss_fn(y_pred, Y_batch) # loss is a Tensor
+            if not np.all(np.isfinite(loss.data)):
+                return None, None, None
             batch_size = X_batch.shape[0]
             total_loss += loss.data * batch_size
             total_samples += batch_size
@@ -82,14 +103,16 @@ class Trainer:
                 targets.append(Y_batch.data)
             model.zero_grad()
             loss.backward()
+            grad_norm = _gradient_norm(model)
+            if not np.isfinite(grad_norm):
+                return None, None, None
             optimizer.step()
 
         # zero_grad() runs at the START of each batch, not the end of the
-        # epoch, so the model's grads here still hold the last batch's
-        # values - this reports that last batch's gradient norm, not a
-        # running average across the epoch.
+        # epoch, so grad_norm (and the model's grads, which _record_epoch
+        # reads for the per-layer norms) hold the last batch's values - not
+        # a running average across the epoch.
         avg_loss = total_loss / total_samples
-        grad_norm = _gradient_norm(model)
         avg_accuracy = _whole_pass_metric(accuracy_fn, predictions, targets)
         return avg_loss, grad_norm, avg_accuracy
 
@@ -178,25 +201,47 @@ class Trainer:
         on_epoch_end: optional callable(epoch, model, avg_loss), called after
         every epoch (epochs count from 1) - how weight snapshots and the live
         terminal view watch training without the Trainer knowing about either.
+
+        Returns the last epoch's average loss, or NaN if training diverged -
+        then self.diverged_at_epoch says when, and the histories hold only
+        the epochs before it (see _run_epoch).
         """
 
         start = time.time()
         if accuracy_fn is not None:
             self.accuracy_history = []
 
-        if verbose and is_tty():
-            avg_loss = self._fit_with_progress_bar(
-                model, loss_fn, optimizer, dataloader, epochs, accuracy_fn=accuracy_fn,
-                on_epoch_end=on_epoch_end,
-            )
-            self.duration_seconds = time.time() - start
-            return avg_loss
+        # Overflow/invalid-value warnings are what a diverging run produces
+        # on its way to inf/NaN. _run_epoch detects that and stops training,
+        # and the CLI reports it in one line - instead of numpy printing a
+        # wall of RuntimeWarnings.
+        with np.errstate(over="ignore", invalid="ignore"):
+            if verbose and is_tty():
+                avg_loss = self._fit_with_progress_bar(
+                    model, loss_fn, optimizer, dataloader, epochs, accuracy_fn=accuracy_fn,
+                    on_epoch_end=on_epoch_end,
+                )
+            else:
+                avg_loss = self._fit_plain(
+                    model, loss_fn, optimizer, dataloader, epochs, verbose, log_every,
+                    accuracy_fn=accuracy_fn, on_epoch_end=on_epoch_end,
+                )
 
+        self.duration_seconds = time.time() - start
+        return float("nan") if self.diverged_at_epoch is not None else avg_loss
+
+    def _fit_plain(
+        self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int,
+        verbose: bool, log_every: int, accuracy_fn=None, on_epoch_end=None
+    ):
         avg_loss = None
         for e in range(1, epochs+1):
             avg_loss, grad_norm, avg_accuracy = self._run_epoch(
                 model, loss_fn, optimizer, dataloader, accuracy_fn=accuracy_fn
             )
+            if avg_loss is None:
+                self.diverged_at_epoch = e
+                break
 
             if verbose and e % log_every == 0:
                 print(f"{e} | {avg_loss}")
@@ -205,7 +250,6 @@ class Trainer:
             if on_epoch_end is not None:
                 on_epoch_end(e, model, avg_loss)
 
-        self.duration_seconds = time.time() - start
         return avg_loss
 
     def _fit_with_progress_bar(
@@ -229,6 +273,9 @@ class Trainer:
                 avg_loss, grad_norm, avg_accuracy = self._run_epoch(
                     model, loss_fn, optimizer, dataloader, accuracy_fn=accuracy_fn
                 )
+                if avg_loss is None:
+                    self.diverged_at_epoch = e
+                    break
                 self._record_epoch(model, avg_loss, grad_norm, avg_accuracy)
                 if on_epoch_end is not None:
                     on_epoch_end(e, model, avg_loss)

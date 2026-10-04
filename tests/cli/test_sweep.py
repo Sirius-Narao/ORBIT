@@ -134,7 +134,7 @@ def test_start_sweep_runs_everything_then_resumes_by_skipping(monkeypatch, roots
     create_lr_seed_sweep(monkeypatch, roots)
 
     counts = start_sweep("sw", **roots)
-    assert counts == {"done": 4, "failed": 0, "skipped": 0, "missing": 0}
+    assert counts == {"done": 4, "diverged": 0, "failed": 0, "skipped": 0, "missing": 0}
     for i in range(1, 5):
         assert (roots["root"] / f"sw_00{i}" / "results" / "results.json").exists()
 
@@ -599,3 +599,31 @@ def test_compare_sweep_rejects_combined_metric_options(roots):
         compare_sweep("sw", test_only=True, all_metrics=True, **roots)
     with pytest.raises(ValueError):
         compare_sweep("sw", test_only=True, by=["final_loss"], **roots)
+
+
+def test_start_sweep_counts_and_shows_diverged_runs(monkeypatch, roots, capsys):
+    write_base(roots["root"])
+    create_lr_seed_sweep(monkeypatch, roots)
+    # Make one run diverge for real: a linear model (unbounded MSE) with an
+    # absurd learning rate.
+    config_path = roots["root"] / "sw_002" / "experiment.json"
+    config = json.loads(config_path.read_text())
+    config["model"] = [{"type": "Linear", "in_features": 2, "neurons": 1}]
+    config["learning_rate"] = 1e100
+    config_path.write_text(json.dumps(config))
+    capsys.readouterr()
+
+    counts = start_sweep("sw", **roots)
+    out = capsys.readouterr().out
+
+    assert counts["done"] == 3
+    assert counts["diverged"] == 1
+    assert "sw_002: diverged at epoch" in out
+    assert "1 diverged" in out
+    assert "grad_clip" in out
+
+    # Finished, so a second start doesn't retry it; status labels it.
+    assert start_sweep("sw", **roots)["skipped"] == 4
+    capsys.readouterr()
+    sweep_status("sw", **roots)
+    assert "diverged (epoch" in capsys.readouterr().out

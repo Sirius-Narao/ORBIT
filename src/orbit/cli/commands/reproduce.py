@@ -5,6 +5,12 @@ import json
 import pathlib
 
 
+def _describe(results) -> str:
+    if results.diverged_at_epoch is not None:
+        return f"diverged at epoch {results.diverged_at_epoch}"
+    return f"final loss {results.final_loss:.4f}"
+
+
 def reproduce_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
     exp_dir = experiment_dir(name, root=root)
     results_path = exp_dir / "results" / "results.json"
@@ -26,7 +32,13 @@ def reproduce_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> No
     previous = load_results(results_path)
     new_results = run_experiment(name, root=root)
 
-    if abs(new_results.final_loss - previous.final_loss) < 1e-9:
+    if previous.diverged_at_epoch is not None or new_results.diverged_at_epoch is not None:
+        # NaN never equals NaN, so compare where the runs diverged instead.
+        if previous.diverged_at_epoch == new_results.diverged_at_epoch:
+            success(f"Reproduced: diverged at epoch {new_results.diverged_at_epoch} both times.")
+        else:
+            warning(f"Result differs: previously {_describe(previous)}, now {_describe(new_results)}.")
+    elif abs(new_results.final_loss - previous.final_loss) < 1e-9:
         success(f"Reproduced: final loss matches ({new_results.final_loss:.4f}).")
     else:
         warning(

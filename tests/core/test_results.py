@@ -267,3 +267,17 @@ def test_results_from_dict_without_layer_gradient_norms_defaults_to_none():
     del data["layer_gradient_norm_history"]
 
     assert Results.from_dict(data).layer_gradient_norm_history is None
+
+
+
+def test_results_round_trips_diverged_at_epoch():
+    results = Results(name="exp", final_loss=float("nan"), loss_history=[1.0, 2.0], diverged_at_epoch=3)
+
+    assert Results.from_dict(results.to_dict()).diverged_at_epoch == 3
+
+
+def test_results_from_dict_without_diverged_at_epoch_defaults_to_none():
+    data = Results(name="old", final_loss=0.1, loss_history=[0.1]).to_dict()
+    del data["diverged_at_epoch"]
+
+    assert Results.from_dict(data).diverged_at_epoch is None

@@ -159,6 +159,30 @@ Opened 2026-10-04 by explicit user direction: ORBIT's most important job is show
 
 All six phases are done. `visualization/weights.py` is the only visualization stub left.
 
+### Training stability: divergence detection and gradient clipping
+
+Opened 2026-10-04 after the `WineS` sweep (plain SGD at lr 0.1, 2–5 hidden layers) had runs blow up. Training kept going for 200 epochs on NaN, behind a wall of numpy `RuntimeWarning`s, and the result was reported as an ordinary `final loss nan`. The user accepted two fixes.
+
+1. **Divergence detection, always on.** **Done.**
+   - There is no switch, because nothing can be learned once values are NaN.
+   - `Trainer._run_epoch` abandons the epoch at the first non-finite batch loss (checked before `backward()`) or non-finite global gradient norm (checked before `optimizer.step()`), and returns `(None, None, None)`. Stopping before the update keeps the **weights finite**, so the checkpoint and `orbit network`/`health`/`animate` still work on a diverged run.
+   - `_run_epoch` now computes `_gradient_norm` every batch instead of once per epoch. The recorded value is unchanged: it is still the last batch's norm.
+   - `fit` (split into `_fit_plain` and `_fit_with_progress_bar`) sets `trainer.diverged_at_epoch`, stops without recording that epoch, and returns NaN. The histories keep only the finite epochs, and can be empty if epoch 1 diverged. `on_epoch_end` isn't called for the diverged epoch.
+   - The whole of `fit` runs under `np.errstate(over="ignore", invalid="ignore")`, so ORBIT reports the problem in one line instead of numpy spamming warnings.
+   - `Experiment.run` skips the test evaluation after divergence, so `test_loss`/`test_accuracy` stay `None`. `--test` ranking then treats the run as incomplete, and the NaN `final_loss` already ranks last.
+   - New optional field `Results.diverged_at_epoch`, `None` for normal or old results.
+   - Reporting:
+     - `cli/parser.py`'s `_report_training` replaces the old final-loss, test-metrics and stalled-check lines for run/train. When the run diverged it prints one warning with `DIVERGENCE_HINT` (defined in `cli/commands/run.py`, shared with sweeps). `_warn_if_stalled` no longer crashes on an empty history.
+     - `orbit inspect` adds a "Diverged at epoch N" line, and `orbit list` shows the status `diverged (epoch N)`.
+     - `orbit reproduce` compares the divergence epoch, since NaN never equals NaN.
+     - `orbit sweep start` warns per diverged run, counts them (`counts["diverged"]`) and prints the hint. `sweep status` labels the run, via the new `diverged_at_epoch` key in `aggregator.collect_rows`.
+     - `run_status` stays `"done"`, so `start` never retries a diverged run; a seeded re-run would diverge identically.
+   - Tests:
+     - `tests/nn/test_trainer.py` has a hand-derived case: `Linear(1,1)` at lr 1e100 overflows at epoch 3 with no `RuntimeWarning`. Further cases cover the gradient check (the step is not taken), the callback, and the progress-bar path.
+     - `tests/cli/test_divergence.py` covers the end-to-end CLI with a `Linear(2→1)` model on XOR at lr 1e100. XOR's usual Sigmoid head keeps MSE bounded, so it can't overflow.
+     - Further cases are in `test_experiment.py`, `test_results.py` and `test_sweep.py`.
+2. **Gradient clipping, `"grad_clip"`.** Planned.
+
 Confirmed with the user: animations go to a file (GIF default, MP4 opt-in), and `--show` opens a window only outside the REPL.
 
 ## Commands
