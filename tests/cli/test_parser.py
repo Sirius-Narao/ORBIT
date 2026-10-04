@@ -574,3 +574,13 @@ def test_boundary_dispatches_with_its_options(monkeypatch):
     assert calls == [("xor", {
         "animate": True, "video_format": "gif", "fps": 10, "output": None, "show": False,
     })]
+
+
+def test_health_dispatches(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parser_module, "health_experiment", lambda name, **kwargs: calls.append((name, kwargs)))
+    monkeypatch.setattr("sys.argv", ["orbit", "health", "xor"])
+
+    parser_module.main()
+
+    assert calls == [("xor", {"output": None})]

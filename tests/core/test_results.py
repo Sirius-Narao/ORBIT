@@ -246,3 +246,24 @@ def test_from_dict_defaults_test_loss_and_test_accuracy_when_missing_from_old_da
 
     assert rebuilt.test_loss is None
     assert rebuilt.test_accuracy is None
+
+
+def test_results_round_trips_layer_gradient_norm_history():
+    import numpy as np
+
+    results = Results(
+        name="exp", final_loss=0.1, loss_history=[0.2, 0.1],
+        layer_gradient_norm_history={"0.weight": [np.float64(1.5), 0.5], "2.weight": [0.25, 0.125]},
+    )
+
+    restored = Results.from_dict(results.to_dict())
+
+    assert restored.layer_gradient_norm_history == {"0.weight": [1.5, 0.5], "2.weight": [0.25, 0.125]}
+    assert type(results.to_dict()["layer_gradient_norm_history"]["0.weight"][0]) is float
+
+
+def test_results_from_dict_without_layer_gradient_norms_defaults_to_none():
+    data = Results(name="old", final_loss=0.1, loss_history=[0.1]).to_dict()
+    del data["layer_gradient_norm_history"]
+
+    assert Results.from_dict(data).layer_gradient_norm_history is None

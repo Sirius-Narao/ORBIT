@@ -19,6 +19,7 @@ from orbit.cli.commands.plot import plot_experiments
 from orbit.cli.commands.network import network_experiment
 from orbit.cli.commands.animate import animate_experiment
 from orbit.cli.commands.boundary import boundary_experiment
+from orbit.cli.commands.health import health_experiment
 from orbit.cli.commands.sweep import (
     create_sweep,
     start_sweep,
@@ -171,7 +172,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     plot_parser.add_argument(
         "--metrics", nargs="+",
-        choices=["loss", "accuracy", "gradient_norm", "test_loss", "test_accuracy"],
+        choices=["loss", "accuracy", "gradient_norm", "layer_gradient_norm", "test_loss", "test_accuracy"],
         help="Metric(s) to plot (default: prompted interactively)",
     )
 
@@ -217,6 +218,13 @@ def build_parser() -> argparse.ArgumentParser:
     boundary_parser.add_argument("--output", help="Output path (default: .orbits/experiments/<name>/results/)")
     boundary_parser.add_argument("--show", action="store_true", help=_SHOW_HELP)
 
+    # Health command (dead/saturated units per hidden layer)
+    health_parser = subparsers.add_parser(
+        "health", help="Check every hidden layer for dead or saturated units"
+    )
+    health_parser.add_argument("name", help="Name of the experiment to check")
+    health_parser.add_argument("--output", help="PNG path (default: .orbits/experiments/<name>/results/health.png)")
+
     # Sweep command (nested subcommands)
     sweep_parser = subparsers.add_parser("sweep", help="Hyperparameter sweeps over a base experiment")
     sweep_subparsers = sweep_parser.add_subparsers(dest="sweep_command", required=True)
@@ -260,7 +268,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sweep_plot_parser.add_argument(
         "--metrics", nargs="+",
-        choices=["loss", "accuracy", "gradient_norm", "test_loss", "test_accuracy"],
+        choices=["loss", "accuracy", "gradient_norm", "layer_gradient_norm", "test_loss", "test_accuracy"],
         help="Metric(s) to plot (default: prompted interactively)",
     )
 
@@ -355,6 +363,8 @@ def _dispatch(args: argparse.Namespace, in_repl: bool = False) -> None:
             args.name, animate=args.animate, video_format="mp4" if args.mp4 else "gif", fps=args.fps,
             output=args.output, show=_resolve_show(args, in_repl),
         )
+    elif args.command == "health":
+        health_experiment(args.name, output=args.output)
     elif args.command == "sweep":
         _dispatch_sweep(args)
     elif args.command == "import":

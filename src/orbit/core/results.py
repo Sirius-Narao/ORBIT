@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 class Results:
     def __init__(
@@ -12,6 +12,7 @@ class Results:
         accuracy_history: Optional[List[float]] = None,
         test_loss: Optional[float] = None,
         test_accuracy: Optional[float] = None,
+        layer_gradient_norm_history: Optional[Dict[str, List[float]]] = None,
     ):
         self.name = name
         self.final_loss = final_loss
@@ -24,6 +25,9 @@ class Results:
         self.accuracy_history = accuracy_history
         self.test_loss = test_loss
         self.test_accuracy = test_accuracy
+        # {weight parameter name, e.g. "0.weight": per-epoch gradient norm};
+        # None for results saved before it was tracked.
+        self.layer_gradient_norm_history = layer_gradient_norm_history
 
     def __repr__(self):
         return f"Results(name={self.name!r}, final_loss={self.final_loss:.4f}, epochs={len(self.loss_history)})"
@@ -53,6 +57,11 @@ class Results:
             ),
             "test_loss": float(self.test_loss) if self.test_loss is not None else None,
             "test_accuracy": float(self.test_accuracy) if self.test_accuracy is not None else None,
+            "layer_gradient_norm_history": (
+                {name: [float(g) for g in norms] for name, norms in self.layer_gradient_norm_history.items()}
+                if self.layer_gradient_norm_history is not None
+                else None
+            ),
         }
 
     @classmethod

@@ -458,3 +458,34 @@ def test_fit_calls_on_epoch_end_after_every_epoch_with_that_epochs_loss():
     assert [epoch for epoch, _, _ in calls] == [1, 2, 3]
     assert all(same_model for _, same_model, _ in calls)
     assert [loss for _, _, loss in calls] == trainer.history
+
+
+def test_fit_layer_gradient_norm_is_each_weight_gradients_norm():
+    """
+    Same setup as test_fit_gradient_norm_matches_hand_derived_value: the
+    single weight's gradient is dL/dw = 56/3. Per layer means the weight
+    alone - the bias gradient (8.0) that the global norm includes is left out.
+    """
+    X = np.array([[1.0], [2.0], [3.0]])
+    dataloader = DataLoader(TensorDataset(X, np.zeros((3, 1))), batch_size=3, shuffle=False)
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+
+    trainer = Trainer()
+    trainer.fit(model, MSE(), SGD(model.parameters(), lr=0.0), dataloader, epochs=2)
+
+    assert list(trainer.layer_gradient_norm_history) == ["weight"]
+    assert np.allclose(trainer.layer_gradient_norm_history["weight"], [56 / 3, 56 / 3])
+
+
+def test_fit_layer_gradient_norm_has_one_entry_per_linear_layer():
+    from orbit.nn import Sequential
+    from orbit.nn.activations import Tanh
+
+    model = Sequential(Linear(1, 3), Tanh(), Linear(3, 1))
+    dataloader = DataLoader(TensorDataset(np.ones((2, 1)), np.zeros((2, 1))), batch_size=2)
+
+    trainer = Trainer()
+    trainer.fit(model, MSE(), SGD(model.parameters(), lr=0.1), dataloader, epochs=3)
+
+    assert list(trainer.layer_gradient_norm_history) == ["0.weight", "2.weight"]
+    assert all(len(norms) == 3 for norms in trainer.layer_gradient_norm_history.values())

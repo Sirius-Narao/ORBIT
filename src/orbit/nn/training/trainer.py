@@ -30,6 +30,21 @@ def _gradient_norm(model: Module) -> float:
     return float(np.sqrt(squared_sum))
 
 
+def _layer_gradient_norms(model: Module) -> dict:
+    """
+    L2 norm of each weight matrix's gradient, keyed by parameter name (e.g.
+    "0.weight", "2.weight"). One global norm can look healthy while the
+    first layers get almost nothing - per layer is what shows vanishing or
+    exploding gradients *where* they happen. Biases are left out: they're
+    the same signal, minus the dependence on the layer's input.
+    """
+    return {
+        name: float(np.sqrt(np.sum(param.grad ** 2)))
+        for name, param in model.named_parameters()
+        if name.split(".")[-1] == "weight" and param.grad is not None
+    }
+
+
 def _whole_pass_metric(accuracy_fn, predictions: list, targets: list):
     """
     Apply accuracy_fn once to every sample seen in an epoch/evaluation pass,
@@ -47,6 +62,7 @@ class Trainer:
         self.history = []
         self.duration_seconds = None
         self.gradient_norm_history = []
+        self.layer_gradient_norm_history = {}
         self.accuracy_history = None
 
     def _run_epoch(
@@ -76,6 +92,18 @@ class Trainer:
         grad_norm = _gradient_norm(model)
         avg_accuracy = _whole_pass_metric(accuracy_fn, predictions, targets)
         return avg_loss, grad_norm, avg_accuracy
+
+    def _record_epoch(self, model: Module, avg_loss, grad_norm, avg_accuracy) -> None:
+        """
+        Append one epoch to every history. The model's grads still hold the
+        epoch's last batch, same as grad_norm (see _run_epoch).
+        """
+        self.history.append(avg_loss)
+        self.gradient_norm_history.append(grad_norm)
+        for name, norm in _layer_gradient_norms(model).items():
+            self.layer_gradient_norm_history.setdefault(name, []).append(norm)
+        if avg_accuracy is not None:
+            self.accuracy_history.append(avg_accuracy)
 
     def evaluate(self, model: Module, loss_fn: Loss, dataloader: DataLoader, accuracy_fn=None):
         """
@@ -173,10 +201,7 @@ class Trainer:
             if verbose and e % log_every == 0:
                 print(f"{e} | {avg_loss}")
 
-            self.history.append(avg_loss)
-            self.gradient_norm_history.append(grad_norm)
-            if accuracy_fn is not None:
-                self.accuracy_history.append(avg_accuracy)
+            self._record_epoch(model, avg_loss, grad_norm, avg_accuracy)
             if on_epoch_end is not None:
                 on_epoch_end(e, model, avg_loss)
 
@@ -204,10 +229,7 @@ class Trainer:
                 avg_loss, grad_norm, avg_accuracy = self._run_epoch(
                     model, loss_fn, optimizer, dataloader, accuracy_fn=accuracy_fn
                 )
-                self.history.append(avg_loss)
-                self.gradient_norm_history.append(grad_norm)
-                if accuracy_fn is not None:
-                    self.accuracy_history.append(avg_accuracy)
+                self._record_epoch(model, avg_loss, grad_norm, avg_accuracy)
                 if on_epoch_end is not None:
                     on_epoch_end(e, model, avg_loss)
                 progress.update(task, advance=1, loss=avg_loss)

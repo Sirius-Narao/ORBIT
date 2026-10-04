@@ -12,6 +12,7 @@ from orbit.visualization import (
     plot_accuracy_comparison,
     plot_gradient_norm,
     plot_gradient_norm_comparison,
+    plot_layer_gradient_norms,
     plot_test_loss,
     plot_test_accuracy,
 )
@@ -23,6 +24,7 @@ _METRIC_CHOICES = [
     ("Training loss", "loss"),
     ("Accuracy / R²", "accuracy"),
     ("Gradient norm", "gradient_norm"),
+    ("Gradient norm per layer", "layer_gradient_norm"),
     ("Test loss", "test_loss"),
     ("Test accuracy / R²", "test_accuracy"),
 ]
@@ -36,6 +38,13 @@ _LINE_METRICS = {
     "gradient_norm": (
         "gradient_norm_history", plot_gradient_norm, plot_gradient_norm_comparison, "gradient_norm",
     ),
+}
+# Per-experiment metrics: several lines per experiment already (one per
+# layer), so experiments are never overlaid - each gets its own file in its
+# own results/ dir, even when several are plotted at once.
+# Entry: (history attribute, plot fn, filename slug)
+_PER_EXPERIMENT_METRICS = {
+    "layer_gradient_norm": ("layer_gradient_norm_history", plot_layer_gradient_norms, "layer_gradient_norm"),
 }
 # Each bar-metric entry: (scalar attribute, bar-plot fn, filename slug)
 _BAR_METRICS = {
@@ -111,6 +120,17 @@ def plot_experiments(
 
     console.print()
     for key in metric_keys:
+        if key in _PER_EXPERIMENT_METRICS:
+            attr, plot_fn, slug = _PER_EXPERIMENT_METRICS[key]
+            for n, exp_dir, r in results_list:
+                if not getattr(r, attr):
+                    warning(f"{n} has no recorded {key.replace('_', ' ')} (re-run it to record one), skipping.")
+                    continue
+                output_path = plot_fn(r, exp_dir / "results" / f"{slug}{extension}.png", log_scale=log_scale)
+                success(f"Saved {key.replace('_', ' ')} plot to {output_path}")
+                output_paths.append(output_path)
+            continue
+
         is_bar = key in _BAR_METRICS
         if is_bar:
             attr, bar_fn, slug = _BAR_METRICS[key]

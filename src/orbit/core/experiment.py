@@ -104,4 +104,5 @@ class Experiment:
             accuracy_history = self.trainer.accuracy_history,
             test_loss = test_loss,
             test_accuracy = test_accuracy,
+            layer_gradient_norm_history = self.trainer.layer_gradient_norm_history,
             )

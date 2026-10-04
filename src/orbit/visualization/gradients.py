@@ -75,3 +75,41 @@ def plot_gradient_norm_comparison(
     plt.close(fig)
 
     return output_path
+
+
+def plot_layer_gradient_norms(results: Results, output_path: pathlib.Path, log_scale: bool = False) -> pathlib.Path:
+    """
+    One line per weight matrix's gradient norm (results.layer_gradient_norm_history),
+    first layer first - where the global gradient norm can hide that the
+    early layers barely learn (vanishing gradients) or blow up. Log scale
+    is usually the readable choice here, since layers can differ by orders
+    of magnitude.
+    """
+    if not results.layer_gradient_norm_history:
+        raise ValueError(f"{results.name} has no recorded per-layer gradient norms to plot.")
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    output_path = pathlib.Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    layers = list(results.layer_gradient_norm_history.items())
+    fig, ax = plt.subplots()
+    for index, ((name, norms), color) in enumerate(zip(layers, line_colors(len(layers)))):
+        epochs = range(1, len(norms) + 1)
+        ax.plot(epochs, norms, label=f"Linear {index + 1} ({name})", color=color)
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Gradient Norm")
+    title = f"{results.name} — Gradient Norm per Layer"
+    if log_scale:
+        ax.set_yscale("log")
+        title += " (log scale)"
+    ax.set_title(title)
+    add_legend(ax, len(layers))
+
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path

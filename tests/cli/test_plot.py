@@ -260,3 +260,25 @@ def test_plot_experiments_passes_log_scale_and_suffixes_filenames(tmp_path):
 
     assert result == [exp_a / "results" / "loss_log_scale.png"]
     assert result[0].exists()
+
+
+def test_plot_experiments_layer_gradient_norm_writes_one_file_per_experiment(tmp_path, capsys):
+    exp_a = write_config(tmp_path, "exp_a")
+    exp_b = write_config(tmp_path, "exp_b")
+    for exp_dir in (exp_a, exp_b):
+        results = write_results(exp_dir)
+        results.layer_gradient_norm_history = {"0.weight": [1.0, 0.5, 0.25], "2.weight": [0.1, 0.05, 0.02]}
+        (exp_dir / "results" / "results.json").write_text(json.dumps(results.to_dict()))
+    exp_c = write_config(tmp_path, "exp_c")
+    write_results(exp_c)  # recorded before per-layer norms existed
+
+    result = plot_experiments(
+        ["exp_a", "exp_b", "exp_c"], metrics=["layer_gradient_norm"], log_scale=True, root=tmp_path,
+    )
+
+    assert result == [
+        exp_a / "results" / "layer_gradient_norm_log_scale.png",
+        exp_b / "results" / "layer_gradient_norm_log_scale.png",
+    ]
+    assert all(path.exists() for path in result)
+    assert "exp_c has no recorded layer gradient norm" in capsys.readouterr().out
