@@ -131,7 +131,16 @@ Opened 2026-10-04 by explicit user direction: ORBIT's most important job is show
    - `make_writer`: GIF uses `PillowWriter` with no new dependency. MP4 uses `FFMpegWriter` with `-pix_fmt yuv420p`, and `ffmpeg_path()` looks for `ffmpeg` on PATH, then the `imageio-ffmpeg` bundled binary (new optional extra, `pip install -e .[video]`). Otherwise it raises `VideoWriterError`, which the command shows as a warning, escaped because rich would eat `[video]` as markup.
    - `load_trained_experiment` (in `network.py`) now refuses, with a warning, a checkpoint that doesn't match the current `experiment.json`: a missing parameter, or the same names with different shapes, which `load_checkpoint` alone would load silently.
    - Tests: `tests/visualization/test_animation.py` (GIF frame count via PIL; MP4 skipped without ffmpeg) and `tests/cli/test_animate.py`.
-4. `orbit boundary`: the decision boundary for 2-input datasets, with `--animate`. Planned.
+4. `orbit boundary <name> [--animate] [--mp4] [--fps 10] [--output PATH] [--show]`. **Done.**
+   - `cli/commands/boundary.py` (`boundary_experiment`) only handles models whose training inputs have exactly 2 features. Otherwise it warns and suggests `orbit network`; picking 2 of N features is deferred.
+   - The grid covers train and test points together. Axis labels are the imported dataset's input column names (from the manifest) or "Input 1/2", with "(normalized)" appended when the config normalizes.
+   - Without `--animate` it plots the current (trained, or initial with a warning) model to `results/boundary.png`. `--animate` reuses `animate.py`'s `snapshot_weights` and writes `results/boundary.{gif,mp4}`. The regression color scale is fixed over the targets and every frame's predictions.
+   - `visualization/boundary.py`: `boundary_grid(X, resolution=200, margin=0.15)`. `draw_boundary` handles three kinds of output:
+     - Several outputs: argmax class regions (`tab10`), with targets taken from one-hot or class-index labels via `class_labels`.
+     - One output and classification (`is_classification`: a classification task, or 0/1 targets with no task): probability on `RdBu_r` with a black 0.5 contour.
+     - Otherwise: the predicted value on `viridis`.
+   - Train points are filled with black edges and test points are hollow. `plot_boundary` and `animate_boundary` reuse `animation.save_animation`.
+   - Tests: `tests/visualization/test_boundary_plot.py` (unique basename) and `tests/cli/test_boundary.py`.
 5. `orbit health`: per-layer activation histograms and dead/saturated fractions, plus per-layer gradient norms. Planned.
 6. `orbit run|train --watch`: a live `rich` terminal view of the network during training, in `visualization/terminal.py`. Planned.
 

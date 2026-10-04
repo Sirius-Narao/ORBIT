@@ -562,3 +562,15 @@ def test_animate_dispatches_with_its_options(monkeypatch):
     assert calls == [("xor", {
         "sample": None, "video_format": "mp4", "fps": 5, "output": None, "log_scale": True, "show": False,
     })]
+
+
+def test_boundary_dispatches_with_its_options(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parser_module, "boundary_experiment", lambda name, **kwargs: calls.append((name, kwargs)))
+    monkeypatch.setattr("sys.argv", ["orbit", "boundary", "xor", "--animate"])
+
+    parser_module.main()
+
+    assert calls == [("xor", {
+        "animate": True, "video_format": "gif", "fps": 10, "output": None, "show": False,
+    })]

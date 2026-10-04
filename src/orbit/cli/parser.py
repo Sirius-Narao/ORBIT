@@ -18,6 +18,7 @@ from orbit.cli.commands.plotloss import plot_experiment
 from orbit.cli.commands.plot import plot_experiments
 from orbit.cli.commands.network import network_experiment
 from orbit.cli.commands.animate import animate_experiment
+from orbit.cli.commands.boundary import boundary_experiment
 from orbit.cli.commands.sweep import (
     create_sweep,
     start_sweep,
@@ -203,6 +204,19 @@ def build_parser() -> argparse.ArgumentParser:
     animate_parser.add_argument("--logscale", action="store_true", help="Use a log-scale y-axis for the loss")
     animate_parser.add_argument("--show", action="store_true", help=_SHOW_HELP)
 
+    # Boundary command (decision boundary of a 2-input model)
+    boundary_parser = subparsers.add_parser(
+        "boundary", help="Plot a 2-input model's decision boundary over its data"
+    )
+    boundary_parser.add_argument("name", help="Name of the experiment to plot")
+    boundary_parser.add_argument(
+        "--animate", action="store_true", help="Animate the boundary forming over training (GIF by default)"
+    )
+    boundary_parser.add_argument("--mp4", action="store_true", help="With --animate: save an MP4 (needs ffmpeg)")
+    boundary_parser.add_argument("--fps", type=int, default=10, help="With --animate: frames per second (default: 10)")
+    boundary_parser.add_argument("--output", help="Output path (default: .orbits/experiments/<name>/results/)")
+    boundary_parser.add_argument("--show", action="store_true", help=_SHOW_HELP)
+
     # Sweep command (nested subcommands)
     sweep_parser = subparsers.add_parser("sweep", help="Hyperparameter sweeps over a base experiment")
     sweep_subparsers = sweep_parser.add_subparsers(dest="sweep_command", required=True)
@@ -335,6 +349,11 @@ def _dispatch(args: argparse.Namespace, in_repl: bool = False) -> None:
         animate_experiment(
             args.name, sample=args.sample, video_format="mp4" if args.mp4 else "gif", fps=args.fps,
             output=args.output, log_scale=args.logscale, show=_resolve_show(args, in_repl),
+        )
+    elif args.command == "boundary":
+        boundary_experiment(
+            args.name, animate=args.animate, video_format="mp4" if args.mp4 else "gif", fps=args.fps,
+            output=args.output, show=_resolve_show(args, in_repl),
         )
     elif args.command == "sweep":
         _dispatch_sweep(args)
