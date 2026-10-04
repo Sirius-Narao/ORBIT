@@ -1,10 +1,11 @@
 from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, save_results, save_training_artifacts
 from orbit.core import Results
 from orbit.core.config import load_experiment
+from orbit.cli.commands.watch import run_with_optional_watch
 import json
 import pathlib
 
-def train_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> Results:
+def train_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT, watch: bool = False) -> Results:
     exp_dir = experiment_dir(name, root=root)
 
     try:
@@ -15,7 +16,7 @@ def train_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> Result
 
     experiment = load_experiment(config)
 
-    results = experiment.run(skip_test=True)
+    results = run_with_optional_watch(experiment, name, watch, skip_test=True)
     save_results(results=results, path=exp_dir/"results"/"results.json")
     save_training_artifacts(name, experiment, root=root)
 

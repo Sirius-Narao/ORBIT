@@ -33,7 +33,7 @@ def test_run_dispatches_to_run_experiment_with_name(monkeypatch, capsys):
         test_loss = None
         test_accuracy = None
 
-    def fake_run_experiment(name):
+    def fake_run_experiment(name, **kwargs):
         calls.append(name)
         return FakeResults()
 
@@ -54,7 +54,7 @@ def test_run_reports_test_loss_and_accuracy_when_present(monkeypatch, capsys):
         test_accuracy = 0.875
         hyperparams = {}
 
-    monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
+    monkeypatch.setattr(parser_module, "run_experiment", lambda name, **kwargs: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "run", "split_model"])
 
     parser_module.main()
@@ -71,7 +71,7 @@ def test_run_omits_test_loss_line_when_absent(monkeypatch, capsys):
         test_loss = None
         test_accuracy = None
 
-    monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
+    monkeypatch.setattr(parser_module, "run_experiment", lambda name, **kwargs: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "run", "no_split_model"])
 
     parser_module.main()
@@ -86,7 +86,7 @@ def test_run_warns_when_loss_barely_improves(monkeypatch, capsys):
         test_loss = None
         test_accuracy = None
 
-    monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
+    monkeypatch.setattr(parser_module, "run_experiment", lambda name, **kwargs: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "run", "underpowered_model"])
 
     parser_module.main()
@@ -101,7 +101,7 @@ def test_run_does_not_warn_on_a_healthy_run(monkeypatch, capsys):
         test_loss = None
         test_accuracy = None
 
-    monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
+    monkeypatch.setattr(parser_module, "run_experiment", lambda name, **kwargs: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "run", "healthy_model"])
 
     parser_module.main()
@@ -118,7 +118,7 @@ def test_run_does_not_warn_on_single_epoch_run(monkeypatch, capsys):
         test_loss = None
         test_accuracy = None
 
-    monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
+    monkeypatch.setattr(parser_module, "run_experiment", lambda name, **kwargs: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "run", "one_epoch_model"])
 
     parser_module.main()
@@ -133,7 +133,7 @@ def test_train_dispatches_to_train_experiment_with_name(monkeypatch, capsys):
         final_loss = 0.1234
         loss_history = [1.0, 0.5, 0.1234]
 
-    def fake_train_experiment(name):
+    def fake_train_experiment(name, **kwargs):
         calls.append(name)
         return FakeResults()
 
@@ -151,7 +151,7 @@ def test_train_warns_when_loss_barely_improves(monkeypatch, capsys):
         final_loss = 0.2389
         loss_history = [0.2448] * 10 + [0.2389]  # ~2% improvement - a stall
 
-    monkeypatch.setattr(parser_module, "train_experiment", lambda name: FakeResults())
+    monkeypatch.setattr(parser_module, "train_experiment", lambda name, **kwargs: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "train", "underpowered_model"])
 
     parser_module.main()
@@ -387,7 +387,7 @@ def test_run_without_name_configures_then_runs(monkeypatch, capsys):
         calls.append("create_experiment")
         return pathlib.Path(".orbits/experiments/auto_named/experiment.json")
 
-    def fake_run_experiment(name):
+    def fake_run_experiment(name, **kwargs):
         calls.append(("run_experiment", name))
         return FakeResults()
 
@@ -409,7 +409,7 @@ def test_run_reports_test_r2_as_a_plain_number(monkeypatch, capsys):
         test_accuracy = 0.8123
         hyperparams = {"task": "regression_r2"}
 
-    monkeypatch.setattr(parser_module, "run_experiment", lambda name: FakeResults())
+    monkeypatch.setattr(parser_module, "run_experiment", lambda name, **kwargs: FakeResults())
     monkeypatch.setattr("sys.argv", ["orbit", "run", "regression_model"])
 
     parser_module.main()
@@ -584,3 +584,22 @@ def test_health_dispatches(monkeypatch):
     parser_module.main()
 
     assert calls == [("xor", {"output": None})]
+
+
+@pytest.mark.parametrize("command, fn_name", [("run", "run_experiment"), ("train", "train_experiment")])
+def test_watch_flag_reaches_run_and_train(monkeypatch, capsys, command, fn_name):
+    calls = []
+
+    class FakeResults:
+        final_loss = 0.1
+        loss_history = [1.0, 0.1]
+        test_loss = None
+        test_accuracy = None
+        hyperparams = {}
+
+    monkeypatch.setattr(parser_module, fn_name, lambda name, **kwargs: calls.append(kwargs) or FakeResults())
+    monkeypatch.setattr("sys.argv", ["orbit", command, "xor", "--watch"])
+
+    parser_module.main()
+
+    assert calls == [{"watch": True}]

@@ -80,6 +80,9 @@ _BY_HELP = (
 _SHOW_HELP = "Also open the figure in a window (not available inside the orbit REPL)"
 
 
+_WATCH_HELP = "Watch the network learn live in the terminal (each neuron as a colored cell) instead of a progress bar"
+
+
 _TEST_HELP = "Rank by the test metrics only (test_loss, test_accuracy - whichever were recorded)"
 
 
@@ -105,10 +108,12 @@ def build_parser() -> argparse.ArgumentParser:
         "name", nargs="?", default=None,
         help="Name of the experiment to run (omit to configure a new one interactively first)",
     )
+    run_parser.add_argument("--watch", action="store_true", help=_WATCH_HELP)
 
     # Train command
     train_parser = subparsers.add_parser("train", help="Train a saved experiment without evaluating its test split")
     train_parser.add_argument("name", help="Name of the experiment to train")
+    train_parser.add_argument("--watch", action="store_true", help=_WATCH_HELP)
 
     # Test command
     test_parser = subparsers.add_parser(
@@ -317,13 +322,13 @@ def _dispatch(args: argparse.Namespace, in_repl: bool = False) -> None:
         if name is None:
             config_path = create_experiment()
             name = config_path.parent.name
-        results = run_experiment(name)
+        results = run_experiment(name, watch=args.watch)
         success(f"Final loss: {results.final_loss}")
         _report_test_metrics(results)
         _warn_if_stalled(results)
         console.print()
     elif args.command == "train":
-        results = train_experiment(args.name)
+        results = train_experiment(args.name, watch=args.watch)
         success(f"Final loss: {results.final_loss}")
         _warn_if_stalled(results)
         console.print()
