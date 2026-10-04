@@ -1,8 +1,8 @@
 # ORBIT v0.1 — Open Research & Benchmarking Intelligence Toolkit
 
 <p align="center">
-  <img src="assets/images/xor_boundary.gif" alt="A network learning XOR: its decision boundary forming epoch by epoch" width="49%">
-  <img src="assets/images/xor_training.gif" alt="The same network's weights and activations changing during training, next to its loss curve" width="49%">
+  <!-- <img src="assets/images/xor_boundary.gif" alt="A network learning XOR: its decision boundary forming epoch by epoch" width="49%"> -->
+  <img src="assets/images/training.gif" alt="The same network's weights and activations changing during training, next to its loss curve" width="100%">
 </p>
 
 ## The Main Picture
