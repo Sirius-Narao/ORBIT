@@ -17,6 +17,11 @@ dependencies = [
 dev = [
     "pytest",
 ]
+# MP4 output for orbit animate / orbit boundary --animate --mp4: bundles an
+# ffmpeg binary, for machines without ffmpeg on PATH. GIF needs nothing extra.
+video = [
+    "imageio-ffmpeg",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

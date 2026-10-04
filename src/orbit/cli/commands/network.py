@@ -47,7 +47,18 @@ def load_trained_experiment(name: str, root: pathlib.Path):
     experiment = load_experiment(config)
     trained = checkpoint_exists(name, root=root)
     if trained:
-        load_checkpoint(name, experiment.model, root=root)
+        # experiment.json may have been edited since the run: a missing
+        # parameter raises KeyError, a changed width would load silently
+        # with the wrong shape - catch both rather than draw nonsense.
+        expected = {param_name: param.data.shape for param_name, param in experiment.model.named_parameters()}
+        try:
+            load_checkpoint(name, experiment.model, root=root)
+            matches = all(param.data.shape == expected[n] for n, param in experiment.model.named_parameters())
+        except KeyError:
+            matches = False
+        if not matches:
+            warning(f"{name}'s saved weights don't match its current model (was experiment.json edited?) - re-run it.")
+            return None
     return config, experiment, trained
 
 

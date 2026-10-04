@@ -17,6 +17,7 @@ from orbit.cli.commands.rename import rename_experiment
 from orbit.cli.commands.plotloss import plot_experiment
 from orbit.cli.commands.plot import plot_experiments
 from orbit.cli.commands.network import network_experiment
+from orbit.cli.commands.animate import animate_experiment
 from orbit.cli.commands.sweep import (
     create_sweep,
     start_sweep,
@@ -185,6 +186,23 @@ def build_parser() -> argparse.ArgumentParser:
     network_parser.add_argument("--output", help="PNG path (default: .orbits/experiments/<name>/results/)")
     network_parser.add_argument("--show", action="store_true", help=_SHOW_HELP)
 
+    # Animate command (training animation from recorded weight snapshots)
+    animate_parser = subparsers.add_parser(
+        "animate", help="Animate an experiment's training: the network and loss, epoch by epoch"
+    )
+    animate_parser.add_argument("name", help="Name of the experiment to animate")
+    animate_parser.add_argument(
+        "--sample", type=int,
+        help="Color nodes by this training sample's activations (default: mean over the training set)",
+    )
+    animate_parser.add_argument(
+        "--mp4", action="store_true", help="Save an MP4 instead of a GIF (needs ffmpeg)"
+    )
+    animate_parser.add_argument("--fps", type=int, default=10, help="Frames per second (default: 10)")
+    animate_parser.add_argument("--output", help="Output path (default: .orbits/experiments/<name>/results/)")
+    animate_parser.add_argument("--logscale", action="store_true", help="Use a log-scale y-axis for the loss")
+    animate_parser.add_argument("--show", action="store_true", help=_SHOW_HELP)
+
     # Sweep command (nested subcommands)
     sweep_parser = subparsers.add_parser("sweep", help="Hyperparameter sweeps over a base experiment")
     sweep_subparsers = sweep_parser.add_subparsers(dest="sweep_command", required=True)
@@ -312,6 +330,11 @@ def _dispatch(args: argparse.Namespace, in_repl: bool = False) -> None:
     elif args.command == "network":
         network_experiment(
             args.name, sample=args.sample, output=args.output, show=_resolve_show(args, in_repl)
+        )
+    elif args.command == "animate":
+        animate_experiment(
+            args.name, sample=args.sample, video_format="mp4" if args.mp4 else "gif", fps=args.fps,
+            output=args.output, log_scale=args.logscale, show=_resolve_show(args, in_repl),
         )
     elif args.command == "sweep":
         _dispatch_sweep(args)

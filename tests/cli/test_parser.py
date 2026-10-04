@@ -550,3 +550,15 @@ def test_network_show_is_refused_inside_the_repl(monkeypatch, capsys):
 
     assert calls == [False]
     assert "not available in the REPL" in capsys.readouterr().out
+
+
+def test_animate_dispatches_with_its_options(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parser_module, "animate_experiment", lambda name, **kwargs: calls.append((name, kwargs)))
+    monkeypatch.setattr("sys.argv", ["orbit", "animate", "xor", "--mp4", "--fps", "5", "--logscale"])
+
+    parser_module.main()
+
+    assert calls == [("xor", {
+        "sample": None, "video_format": "mp4", "fps": 5, "output": None, "log_scale": True, "show": False,
+    })]

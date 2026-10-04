@@ -90,3 +90,16 @@ def test_network_experiment_honors_output_path(tmp_path):
 
     assert result == output
     assert output.exists()
+
+
+def test_network_experiment_refuses_a_checkpoint_from_a_different_architecture(tmp_path, capsys):
+    exp_dir = write_config(tmp_path, "xor_test")
+    train_experiment("xor_test", root=tmp_path)
+    config = json.loads((exp_dir / "experiment.json").read_text())
+    config["model"][0]["neurons"] = 4  # same parameter names, different shapes
+    (exp_dir / "experiment.json").write_text(json.dumps(config))
+
+    result = network_experiment("xor_test", root=tmp_path)
+
+    assert result is None
+    assert "don't match its current model" in capsys.readouterr().out

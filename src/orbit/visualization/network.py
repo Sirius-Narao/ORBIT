@@ -211,25 +211,33 @@ def network_figure_size(structure: List[LayerInfo]) -> Tuple[float, float]:
     return max(7.0, 2.4 * len(sizes) + 2.0), max(4.5, 0.6 * tallest + 2.0)
 
 
-def add_network_colorbars(fig, ax) -> None:
-    """Legends for the two color scales: activation (nodes) and weight sign/size (edges, outlines)."""
+def add_network_colorbars(fig, ax, caxes=None) -> None:
+    """
+    Legends for the two color scales: activation (nodes) and weight
+    sign/size (edges, outlines). By default two short horizontal bars side
+    by side under the diagram, placed in ax's coordinates so they follow
+    the (aspect-locked) network wherever it ends up in the figure. An
+    animation, which clears ax every frame, passes its own figure-level
+    caxes=(activation_ax, weight_ax) instead.
+    """
     import matplotlib
     from matplotlib.cm import ScalarMappable
     from matplotlib.colors import Normalize
 
-    # Two short horizontal bars side by side under the diagram, placed in
-    # axes coordinates so they follow the (aspect-locked) network wherever
-    # it ends up in the figure.
+    if caxes is None:
+        caxes = (ax.inset_axes([0.08, -0.06, 0.36, 0.025]), ax.inset_axes([0.56, -0.06, 0.36, 0.025]))
+    activation_cax, weight_cax = caxes
+
     activation_bar = fig.colorbar(
         ScalarMappable(norm=Normalize(0, 1), cmap=matplotlib.colormaps[ACTIVATION_CMAP]),
-        cax=ax.inset_axes([0.08, -0.06, 0.36, 0.025]), orientation="horizontal", ticks=[0, 1],
+        cax=activation_cax, orientation="horizontal", ticks=[0, 1],
     )
     activation_bar.ax.set_xticklabels(["low", "high"], fontsize=8)
     activation_bar.ax.set_title("Node: activation (per layer)", fontsize=8)
 
     weight_bar = fig.colorbar(
         ScalarMappable(norm=Normalize(-1, 1), cmap=matplotlib.colormaps[WEIGHT_CMAP]),
-        cax=ax.inset_axes([0.56, -0.06, 0.36, 0.025]), orientation="horizontal", ticks=[-1, 0, 1],
+        cax=weight_cax, orientation="horizontal", ticks=[-1, 0, 1],
     )
     weight_bar.ax.set_xticklabels(["−", "0", "+"], fontsize=8)
     weight_bar.ax.set_title("Link: weight · outline: bias", fontsize=8)
