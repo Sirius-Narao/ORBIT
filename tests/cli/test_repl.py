@@ -33,7 +33,7 @@ def test_repl_prints_banner_and_dispatches_known_command(monkeypatch, capsys):
     repl_module.repl()
 
     assert calls == ["called"]
-    assert "Toolkit" in capsys.readouterr().out
+    assert "T O O L K I T" in capsys.readouterr().out
 
 
 def test_repl_quit_also_ends_the_loop(monkeypatch, capsys):
