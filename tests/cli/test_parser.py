@@ -529,3 +529,24 @@ def test_test_flag_is_exclusive_with_by_and_all(monkeypatch, capsys, argv):
         parser_module.main()
 
     assert "not allowed with argument" in capsys.readouterr().err
+
+
+def test_network_dispatches_with_its_options(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parser_module, "network_experiment", lambda name, **kwargs: calls.append((name, kwargs)))
+    monkeypatch.setattr("sys.argv", ["orbit", "network", "xor", "--sample", "2", "--output", "net.png", "--show"])
+
+    parser_module.main()
+
+    assert calls == [("xor", {"sample": 2, "output": "net.png", "show": True})]
+
+
+def test_network_show_is_refused_inside_the_repl(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(parser_module, "network_experiment", lambda name, **kwargs: calls.append(kwargs["show"]))
+    args = parser_module.build_parser().parse_args(["network", "xor", "--show"])
+
+    parser_module._dispatch(args, in_repl=True)
+
+    assert calls == [False]
+    assert "not available in the REPL" in capsys.readouterr().out

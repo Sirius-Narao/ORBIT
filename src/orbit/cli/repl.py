@@ -78,7 +78,7 @@ def repl() -> None:
             continue
 
         try:
-            _dispatch(args)
+            _dispatch(args, in_repl=True)
         except Exception as e:
             error(str(e))
 

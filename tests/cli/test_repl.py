@@ -109,3 +109,14 @@ def test_repl_eof_exits_cleanly(monkeypatch, capsys):
     repl_module.repl()
 
     assert "happened" in capsys.readouterr().out
+
+
+def test_repl_dispatches_with_in_repl_set(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(parser_module, "network_experiment", lambda name, **kwargs: calls.append(kwargs["show"]))
+    fake_answers(monkeypatch, ["network xor --show", "exit"])
+
+    repl_module.repl()
+
+    assert calls == [False]
+    assert "not available in the REPL" in capsys.readouterr().out

@@ -16,6 +16,7 @@ from orbit.cli.commands.copy import copy_experiment
 from orbit.cli.commands.rename import rename_experiment
 from orbit.cli.commands.plotloss import plot_experiment
 from orbit.cli.commands.plot import plot_experiments
+from orbit.cli.commands.network import network_experiment
 from orbit.cli.commands.sweep import (
     create_sweep,
     start_sweep,
@@ -71,6 +72,9 @@ _BY_HELP = (
     "Rank by one or more metrics - " + ", ".join(RANK_METRICS) + "; several are combined by "
     "average rank. A bare --by asks which ones interactively"
 )
+
+
+_SHOW_HELP = "Also open the figure in a window (not available inside the orbit REPL)"
 
 
 _TEST_HELP = "Rank by the test metrics only (test_loss, test_accuracy - whichever were recorded)"
@@ -169,6 +173,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Metric(s) to plot (default: prompted interactively)",
     )
 
+    # Network command (diagram of the model itself)
+    network_parser = subparsers.add_parser(
+        "network", help="Draw an experiment's network: nodes, weights and activations"
+    )
+    network_parser.add_argument("name", help="Name of the experiment to draw")
+    network_parser.add_argument(
+        "--sample", type=int,
+        help="Color nodes by this training sample's activations (default: mean over the training set)",
+    )
+    network_parser.add_argument("--output", help="PNG path (default: .orbits/experiments/<name>/results/)")
+    network_parser.add_argument("--show", action="store_true", help=_SHOW_HELP)
+
     # Sweep command (nested subcommands)
     sweep_parser = subparsers.add_parser("sweep", help="Hyperparameter sweeps over a base experiment")
     sweep_subparsers = sweep_parser.add_subparsers(dest="sweep_command", required=True)
@@ -233,7 +249,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _dispatch(args: argparse.Namespace) -> None:
+def _resolve_show(args: argparse.Namespace, in_repl: bool) -> bool:
+    """
+    --show opens a matplotlib window, which needs an interactive backend.
+    Switching backends inside the REPL's long-lived process is fragile, so
+    there the file is saved and the window skipped.
+    """
+    if not getattr(args, "show", False):
+        return False
+    if in_repl:
+        warning("--show is not available in the REPL - open the saved file instead.")
+        return False
+    return True
+
+
+def _dispatch(args: argparse.Namespace, in_repl: bool = False) -> None:
     if args.command == "init":
         init_project()
     elif args.command == "new":
@@ -279,6 +309,10 @@ def _dispatch(args: argparse.Namespace) -> None:
         plot_experiment(args.name, log_scale=args.logscale)
     elif args.command == "plot":
         plot_experiments(args.names, is_all=args.all, log_scale=args.logscale, metrics=args.metrics)
+    elif args.command == "network":
+        network_experiment(
+            args.name, sample=args.sample, output=args.output, show=_resolve_show(args, in_repl)
+        )
     elif args.command == "sweep":
         _dispatch_sweep(args)
     elif args.command == "import":
