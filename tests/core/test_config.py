@@ -599,3 +599,47 @@ def test_load_experiment_trains_xor_with_adam():
     results = load_experiment(config).run()
 
     assert results.final_loss < 0.01
+
+
+
+def test_parse_grad_clip_treats_absent_null_and_zero_as_off():
+    from orbit.core.config import parse_grad_clip
+
+    assert parse_grad_clip({}) is None
+    assert parse_grad_clip({"grad_clip": None}) is None
+    assert parse_grad_clip({"grad_clip": 0}) is None
+    assert parse_grad_clip({"grad_clip": 2}) == 2.0
+
+
+def test_parse_grad_clip_rejects_a_negative_value():
+    from orbit.core.config import parse_grad_clip
+
+    with pytest.raises(ValueError):
+        parse_grad_clip({"grad_clip": -1.0})
+
+
+def test_load_experiment_passes_grad_clip_through_and_records_it():
+    config = {
+        "name": "clipped", "dataset": "xor",
+        "model": [{"type": "Linear", "in_features": 2, "neurons": 1}],
+        "loss": "MSE", "optimizer": "SGD", "learning_rate": 0.1, "epochs": 2, "seed": 0,
+        "grad_clip": 0.5,
+    }
+
+    experiment = load_experiment(config)
+    results = experiment.run()
+
+    assert experiment.grad_clip == 0.5
+    assert results.hyperparams["grad_clip"] == 0.5
+
+
+def test_load_experiment_without_grad_clip_records_nothing():
+    config = {
+        "name": "plain", "dataset": "xor",
+        "model": [{"type": "Linear", "in_features": 2, "neurons": 1}],
+        "loss": "MSE", "optimizer": "SGD", "learning_rate": 0.1, "epochs": 2, "seed": 0,
+    }
+
+    results = load_experiment(config).run()
+
+    assert "grad_clip" not in results.hyperparams

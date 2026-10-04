@@ -57,6 +57,27 @@ def _ask_float(message, default=""):
     return float(answer)
 
 
+def _ask_grad_clip(default=""):
+    """
+    Optional max gradient norm ("grad_clip"); blank or 0 means no clipping,
+    returned as None so the key is left out of experiment.json.
+    """
+    def validate(text):
+        text = text.strip()
+        if text == "":
+            return True
+        try:
+            return True if float(text) >= 0 else "Please enter a positive number, 0, or leave blank"
+        except ValueError:
+            return "Please enter a number, or leave blank"
+
+    answer = questionary.text(
+        "Gradient clipping (max norm, blank = off):", default=default, validate=validate, style=PROMPT_STYLE
+    ).ask()
+    answer = answer.strip()
+    return float(answer) if answer and float(answer) > 0 else None
+
+
 def _ask_optional_float(message, default=""):
     def validate(text):
         text = text.strip()
@@ -139,6 +160,7 @@ def create_experiment() -> pathlib.Path:
     momentum = _ask_momentum(optimizer)
     normalize = questionary.select("Normalize inputs?", choices=NORMALIZE_CHOICES, style=PROMPT_STYLE).ask()
     learning_rate = _ask_float("Learning rate:", default=DEFAULT_LEARNING_RATES.get(optimizer, ""))
+    grad_clip = _ask_grad_clip()
     batch_size = _ask_optional_int("Batch size (blank = default 32):")
     epochs = _ask_int("Epochs:")
     test_split = _ask_optional_float("Test split fraction (0-1, blank = no split):")
@@ -168,6 +190,8 @@ def create_experiment() -> pathlib.Path:
         config["normalize"] = normalize
     if momentum:
         config["momentum"] = momentum
+    if grad_clip is not None:
+        config["grad_clip"] = grad_clip
 
     _print_config_summary(config)
 
@@ -234,6 +258,7 @@ def _print_config_summary(config: dict) -> None:
     table.add_row("Task", task)
     table.add_row("Optimizer", _format_optimizer(config))
     table.add_row("Learning rate", str(config["learning_rate"]))
+    table.add_row("Grad clip", str(config["grad_clip"]) if config.get("grad_clip") else "off")
     table.add_row("Batch size", str(config.get("batch_size", "32 (default)")))
     table.add_row("Epochs", str(config["epochs"]))
     table.add_row("Test split", str(config.get("test_split", "none")))

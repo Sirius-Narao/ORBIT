@@ -195,6 +195,19 @@ def build_accuracy_fn(task: Optional[str], tolerance: Optional[float] = None):
 
 # --- top-level loader -------------------------------------------------------
 
+def parse_grad_clip(config: dict) -> Optional[float]:
+    """
+    The config's optional "grad_clip" (max global gradient norm per batch,
+    see Trainer's _clip_gradients). Absent, null or 0 means no clipping -
+    0 is accepted so a sweep can include an "off" value in its grid.
+    """
+    value = config.get("grad_clip")
+    if value is None or value == 0:
+        return None
+    if value < 0:
+        raise ValueError(f'"grad_clip" must be positive (or 0 for no clipping), got {value!r}')
+    return float(value)
+
 def load_experiment(config: dict) -> Experiment:
     """
     Build an Experiment from a parsed experiment.json-shaped dict. Does not
@@ -219,7 +232,11 @@ def load_experiment(config: dict) -> Experiment:
     for the test split, so no test-set information leaks into training.
     Nothing is persisted: rebuilding from the same seeded config (e.g.
     orbit test) re-derives the identical split and therefore identical stats.
+
+    An optional "grad_clip" caps every batch's global gradient norm (see
+    parse_grad_clip); absent means training exactly as before it existed.
     """
+    grad_clip = parse_grad_clip(config)
     seed = config.get("seed")
     if seed is not None:
         np.random.seed(seed)
@@ -273,6 +290,7 @@ def load_experiment(config: dict) -> Experiment:
         test_dataloader=test_dataloader,
         task=task,
         accuracy_tolerance=accuracy_tolerance,
+        grad_clip=grad_clip,
     )
 
 if __name__ == "__main__":

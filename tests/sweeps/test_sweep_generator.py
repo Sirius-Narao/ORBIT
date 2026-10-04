@@ -246,3 +246,17 @@ def test_expand_grid_mixes_architecture_and_hyperparameters():
     assert params == {"learning_rate": 0.1, "hidden_width": 64}
     assert config["learning_rate"] == 0.1
     assert [layer["neurons"] for layer in config["model"] if layer["type"] == "Linear"] == [64, 64, 1]
+
+
+
+def test_expand_grid_grad_clip_zero_means_off_and_removes_the_key():
+    runs = expand_grid("s", BASE, {"grad_clip": [0, 1.0]})
+
+    assert "grad_clip" not in runs[0][2]
+    assert runs[1][2]["grad_clip"] == 1.0
+
+
+def test_expand_grid_grad_clip_zero_dedupes_with_a_base_without_clipping():
+    runs = expand_grid("s", BASE, {"grad_clip": [0, 0.0], "learning_rate": [0.1]})
+
+    assert len(runs) == 1

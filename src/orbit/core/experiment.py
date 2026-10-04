@@ -21,6 +21,7 @@ class Experiment:
         test_dataloader: Optional[DataLoader] = None,
         task: Optional[str] = None,
         accuracy_tolerance: Optional[float] = None,
+        grad_clip: Optional[float] = None,
     ):
         self.model = model
         self.loss_fn = loss_fn
@@ -34,6 +35,7 @@ class Experiment:
         self.test_dataloader = test_dataloader
         self.task = task
         self.accuracy_tolerance = accuracy_tolerance
+        self.grad_clip = grad_clip
 
         self.trainer = Trainer()
         # Weight snapshots from the last run() (a SnapshotRecorder), or None
@@ -78,6 +80,7 @@ class Experiment:
             log_every=self.log_every,
             accuracy_fn=self.accuracy_fn,
             on_epoch_end=after_epoch if callbacks else None,
+            grad_clip=self.grad_clip,
         )
 
         # A diverged model's test loss would just be NaN too - leave the test
@@ -97,6 +100,8 @@ class Experiment:
             hyperparams["task"] = self.task
         if self.accuracy_tolerance is not None:
             hyperparams["accuracy_tolerance"] = self.accuracy_tolerance
+        if self.grad_clip:
+            hyperparams["grad_clip"] = self.grad_clip
 
         return Results(
             final_loss = final_loss,

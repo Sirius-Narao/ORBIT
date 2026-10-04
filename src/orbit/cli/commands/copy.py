@@ -8,6 +8,7 @@ from orbit.cli.commands.new import (
     NORMALIZE_CHOICES,
     _ask_float,
     _ask_momentum,
+    _ask_grad_clip,
     _ask_int,
     _ask_optional_float,
     _ask_optional_int,
@@ -58,6 +59,7 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
     ).ask()
     momentum = _ask_momentum(optimizer, default=str(source.get("momentum", 0)))
     learning_rate = _ask_float("Learning rate:", default=str(source["learning_rate"]))
+    grad_clip = _ask_grad_clip(default=str(source.get("grad_clip", "")))
     batch_size = _ask_optional_int(
         "Batch size (blank = default 32):", default=str(source.get("batch_size", ""))
     )
@@ -93,6 +95,8 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
         config["normalize"] = normalize
     if momentum:
         config["momentum"] = momentum
+    if grad_clip is not None:
+        config["grad_clip"] = grad_clip
     if optimizer == source["optimizer"] == "Adam":
         for option in ("betas", "eps"):
             if option in source:

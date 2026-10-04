@@ -3,12 +3,17 @@ import questionary
 from orbit.cli.commands.new import create_experiment
 
 
-def fake_prompts(monkeypatch, *, texts, selects):
+GRAD_CLIP_PROMPT = "Gradient clipping (max norm, blank = off):"
+
+
+def fake_prompts(monkeypatch, *, texts, selects, grad_clip=""):
     """
     questionary.text(...)/.select(...) return prompt objects with a .ask()
     method. Stub both factories to hand back canned answers in call order,
     so create_experiment() runs the same as if a person had used arrow
-    keys + enter to pick each one.
+    keys + enter to pick each one. The gradient-clipping prompt is answered
+    separately (grad_clip, blank = off by default), so the positional texts
+    lists don't all have to account for it.
     """
     texts = iter(texts)
     selects = iter(selects)
@@ -20,7 +25,10 @@ def fake_prompts(monkeypatch, *, texts, selects):
         def ask(self):
             return self.value
 
-    monkeypatch.setattr(questionary, "text", lambda *a, **k: FakeAnswer(next(texts)))
+    monkeypatch.setattr(
+        questionary, "text",
+        lambda message, *a, **k: FakeAnswer(grad_clip if message == GRAD_CLIP_PROMPT else next(texts)),
+    )
     monkeypatch.setattr(questionary, "select", lambda *a, **k: FakeAnswer(next(selects)))
 
 
@@ -408,3 +416,48 @@ def test_format_optimizer():
         _format_optimizer({"optimizer": "Adam", "betas": [0.9, 0.99], "eps": 1e-07})
         == "Adam (betas 0.9, 0.99, eps 1e-07)"
     )
+
+
+
+def test_create_experiment_writes_grad_clip_when_given(tmp_path, monkeypatch):
+    monkeypatch.setattr("orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name)
+    fake_prompts(
+        monkeypatch,
+        texts=["xor_clipped", "1", "0", "0.1", "", "10", "", ""],
+        selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
+        grad_clip="1.5",
+    )
+
+    with open(create_experiment()) as f:
+        config = json.load(f)
+
+    assert config["grad_clip"] == 1.5
+
+
+def test_create_experiment_omits_grad_clip_when_zero(tmp_path, monkeypatch):
+    monkeypatch.setattr("orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name)
+    fake_prompts(
+        monkeypatch,
+        texts=["xor_unclipped", "1", "0", "0.1", "", "10", "", ""],
+        selects=["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"],
+        grad_clip="0",
+    )
+
+    with open(create_experiment()) as f:
+        assert "grad_clip" not in json.load(f)
+
+
+def test_config_summary_shows_grad_clip(capsys):
+    from orbit.cli.commands.new import _print_config_summary
+
+    base = {
+        "name": "x", "dataset": "xor", "model": [{"type": "Linear", "in_features": 2, "neurons": 1}],
+        "loss": "MSE", "optimizer": "SGD", "learning_rate": 0.1, "epochs": 1,
+    }
+    _print_config_summary(dict(base, grad_clip=2.5))
+    _print_config_summary(base)
+
+    out = capsys.readouterr().out
+    assert "Grad clip" in out
+    assert "2.5" in out
+    assert "off" in out

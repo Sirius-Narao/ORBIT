@@ -12,7 +12,8 @@ def _normalize_config(config: dict) -> dict:
     equivalent combinations compare equal:
     - optimizer options that belong to a different optimizer (e.g.
       "momentum" once the optimizer is Adam - load_experiment would raise);
-    - "normalize": "none", which means the same as the key being absent.
+    - "normalize": "none", which means the same as the key being absent;
+    - "grad_clip": 0, likewise (no clipping).
     """
     allowed = OPTIMIZER_OPTIONS.get(config.get("optimizer"), ())
     for option in ALL_OPTIMIZER_OPTIONS:
@@ -20,6 +21,8 @@ def _normalize_config(config: dict) -> dict:
             config.pop(option, None)
     if config.get("normalize") == "none":
         config.pop("normalize")
+    if config.get("grad_clip") == 0:
+        config.pop("grad_clip")
     return config
 
 

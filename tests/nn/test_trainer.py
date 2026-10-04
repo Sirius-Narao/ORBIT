@@ -583,3 +583,69 @@ def test_fit_leaves_diverged_at_epoch_unset_for_a_normal_run():
     trainer.fit(model, MSE(), SGD(model.parameters(), lr=0.01), dataloader, epochs=3)
 
     assert trainer.diverged_at_epoch is None
+
+
+
+def _one_batch_fixture():
+    X = np.array([[1.0], [2.0], [3.0]])
+    return DataLoader(TensorDataset(X, np.zeros((3, 1))), batch_size=3, shuffle=False)
+
+
+def test_grad_clip_rescales_the_step_to_the_max_norm():
+    """
+    weight=2, bias=0, X=[1,2,3], targets 0, one batch of 3 (see
+    test_fit_gradient_norm_matches_hand_derived_value):
+        dL/dw = 56/3, dL/db = 8, norm N = sqrt((56/3)^2 + 8^2) ~= 20.3
+
+    With grad_clip=1 the gradient is scaled to unit length, (56/3, 8) / N,
+    so with lr=1 the step is exactly that:
+        w = 2 - (56/3)/N,   b = 0 - 8/N
+    The recorded gradient norms are still the pre-clip values.
+    """
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    trainer = Trainer()
+
+    trainer.fit(model, MSE(), SGD(model.parameters(), lr=1.0), _one_batch_fixture(), epochs=1, grad_clip=1.0)
+
+    norm = np.sqrt((56 / 3) ** 2 + 8.0 ** 2)
+    assert np.isclose(model.weight.data[0, 0], 2.0 - (56 / 3) / norm)
+    assert np.isclose(model.bias.data[0], -8.0 / norm)
+    assert np.isclose(trainer.gradient_norm_history[0], norm)
+    assert np.isclose(trainer.layer_gradient_norm_history["weight"][0], 56 / 3)
+
+
+def test_grad_clip_above_the_gradient_norm_changes_nothing():
+    results = []
+    for grad_clip in (None, 0, 1000.0):
+        model = make_fixed_linear(weight=2.0, bias=0.0)
+        trainer = Trainer()
+        trainer.fit(model, MSE(), SGD(model.parameters(), lr=0.01), _one_batch_fixture(), epochs=3,
+                    grad_clip=grad_clip)
+        results.append((trainer.history, model.weight.data.copy(), model.bias.data.copy()))
+
+    for history, weight, bias in results[1:]:
+        assert history == results[0][0]
+        assert np.array_equal(weight, results[0][1])
+        assert np.array_equal(bias, results[0][2])
+
+
+def test_grad_clip_keeps_an_otherwise_diverging_run_bounded():
+    """
+    Without clipping, lr=0.5 on this problem multiplies w by about
+    1 - 0.5 * 28/3 = -3.67 every step (dL/dw = (2/3) * w * (1+4+9)), so
+    the loss grows ~13x per epoch until it overflows. Capping the step
+    length at lr * grad_clip = 0.5 stops that geometric growth: far from
+    the minimum every step has the same bounded length, so the loss
+    stays finite.
+    """
+    unclipped = Trainer()
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    unclipped.fit(model, MSE(), SGD(model.parameters(), lr=0.5), _one_batch_fixture(), epochs=400)
+
+    clipped = Trainer()
+    model = make_fixed_linear(weight=2.0, bias=0.0)
+    clipped.fit(model, MSE(), SGD(model.parameters(), lr=0.5), _one_batch_fixture(), epochs=400, grad_clip=1.0)
+
+    assert unclipped.diverged_at_epoch is not None
+    assert clipped.diverged_at_epoch is None
+    assert max(clipped.history) < 20

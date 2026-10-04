@@ -45,6 +45,31 @@ def _layer_gradient_norms(model: Module) -> dict:
     }
 
 
+def _clip_gradients(model: Module, grad_norm: float, max_norm: float) -> float:
+    """
+    Gradient clipping by global norm: if the gradient of all parameters,
+    seen as one long vector g, is longer than max_norm, shrink it to length
+    max_norm - every parameter's gradient multiplied by the same
+    scale = max_norm / ||g||. Returns that scale (1.0 when no clipping
+    was needed).
+
+    Scaling everything by one factor keeps the gradient's *direction* -
+    the step still goes downhill the same way - and only caps its *size*.
+    That's what stops the runaway behind divergence: an oversized step
+    overshoots, which makes the next gradient bigger, which makes the next
+    step bigger still; with a cap on the step's length that feedback loop
+    can't grow without bound. Because it acts on param.grad before
+    optimizer.step(), it works the same for every optimizer.
+    """
+    if grad_norm <= max_norm:
+        return 1.0
+    scale = max_norm / grad_norm
+    for param in model.parameters():
+        if param.grad is not None:
+            param.grad = param.grad * scale
+    return scale
+
+
 def _whole_pass_metric(accuracy_fn, predictions: list, targets: list):
     """
     Apply accuracy_fn once to every sample seen in an epoch/evaluation pass,
@@ -67,6 +92,12 @@ class Trainer:
         # The epoch whose loss or gradients became inf/NaN, if training
         # diverged (see _run_epoch) - None for a run that finished normally.
         self.diverged_at_epoch = None
+        # Max global gradient norm per batch (see _clip_gradients), set by
+        # fit(); None/0 = no clipping.
+        self.grad_clip = None
+        # The last batch's clipping scale, so _record_epoch can report the
+        # gradient as it was *before* clipping.
+        self._last_clip_scale = 1.0
 
     def _run_epoch(
         self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, accuracy_fn=None
@@ -106,12 +137,17 @@ class Trainer:
             grad_norm = _gradient_norm(model)
             if not np.isfinite(grad_norm):
                 return None, None, None
+            self._last_clip_scale = (
+                _clip_gradients(model, grad_norm, self.grad_clip) if self.grad_clip else 1.0
+            )
             optimizer.step()
 
         # zero_grad() runs at the START of each batch, not the end of the
         # epoch, so grad_norm (and the model's grads, which _record_epoch
         # reads for the per-layer norms) hold the last batch's values - not
-        # a running average across the epoch.
+        # a running average across the epoch. grad_norm is measured before
+        # any clipping, since the unclipped size is what shows a run
+        # heading for an explosion.
         avg_loss = total_loss / total_samples
         avg_accuracy = _whole_pass_metric(accuracy_fn, predictions, targets)
         return avg_loss, grad_norm, avg_accuracy
@@ -119,12 +155,15 @@ class Trainer:
     def _record_epoch(self, model: Module, avg_loss, grad_norm, avg_accuracy) -> None:
         """
         Append one epoch to every history. The model's grads still hold the
-        epoch's last batch, same as grad_norm (see _run_epoch).
+        epoch's last batch, same as grad_norm (see _run_epoch). If that batch
+        was clipped, every grad was multiplied by the same scale, so dividing
+        each layer's norm by it recovers the exact pre-clip value - matching
+        grad_norm, which is measured before clipping.
         """
         self.history.append(avg_loss)
         self.gradient_norm_history.append(grad_norm)
         for name, norm in _layer_gradient_norms(model).items():
-            self.layer_gradient_norm_history.setdefault(name, []).append(norm)
+            self.layer_gradient_norm_history.setdefault(name, []).append(norm / self._last_clip_scale)
         if avg_accuracy is not None:
             self.accuracy_history.append(avg_accuracy)
 
@@ -196,8 +235,12 @@ class Trainer:
         return avg_loss, avg_accuracy
 
     def fit(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int,
-            verbose: bool = False, log_every: int = 100, accuracy_fn=None, on_epoch_end=None):
+            verbose: bool = False, log_every: int = 100, accuracy_fn=None, on_epoch_end=None,
+            grad_clip=None):
         """
+        grad_clip: optional max global gradient norm per batch (see
+        _clip_gradients); None or 0 trains without clipping.
+
         on_epoch_end: optional callable(epoch, model, avg_loss), called after
         every epoch (epochs count from 1) - how weight snapshots and the live
         terminal view watch training without the Trainer knowing about either.
@@ -208,6 +251,7 @@ class Trainer:
         """
 
         start = time.time()
+        self.grad_clip = grad_clip
         if accuracy_fn is not None:
             self.accuracy_history = []
 

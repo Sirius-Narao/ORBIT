@@ -19,6 +19,7 @@ SWEEPABLE_FIELDS = {
     "seed": "int",
     "normalize": ["none"] + list(NORMALIZE_METHODS),
     "test_split": "float",
+    "grad_clip": "float",
     # Architecture (see ARCHITECTURE_FIELDS below)
     "hidden_width": "int",
     "hidden_depth": "int",
@@ -34,7 +35,7 @@ ARCHITECTURE_FIELDS = ("hidden_width", "hidden_depth", "activation")
 
 # Smallest allowed value per int field: a hidden layer needs at least one
 # unit, while depth 0 (no hidden layer - a linear model) is valid.
-FIELD_MINIMUMS = {"hidden_width": 1, "hidden_depth": 0, "batch_size": 1, "epochs": 1}
+FIELD_MINIMUMS = {"hidden_width": 1, "hidden_depth": 0, "batch_size": 1, "epochs": 1, "grad_clip": 0}
 
 
 def sweep_dir(name: str, root: pathlib.Path = SWEEPS_ROOT) -> pathlib.Path:

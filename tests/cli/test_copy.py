@@ -4,12 +4,16 @@ import questionary
 from orbit.cli.commands.copy import copy_experiment
 
 
-def fake_prompts(monkeypatch, texts, selects=None):
+GRAD_CLIP_PROMPT = "Gradient clipping (max norm, blank = off):"
+
+
+def fake_prompts(monkeypatch, texts, selects=None, grad_clip=None):
     """
     selects maps a select prompt's message to the answer to pick; any
     select prompt not in it stands in for the user accepting the pre-filled
     default (the source's value), same way the canned text answers below
-    re-type the source's values to "accept" them.
+    re-type the source's values to "accept" them. The gradient-clipping
+    prompt likewise accepts its pre-filled default unless grad_clip is given.
     """
     selects = selects or {}
     texts = iter(texts)
@@ -21,7 +25,12 @@ def fake_prompts(monkeypatch, texts, selects=None):
         def ask(self):
             return self.value
 
-    monkeypatch.setattr(questionary, "text", lambda *a, **k: FakeAnswer(next(texts)))
+    def text(message, *a, **k):
+        if message == GRAD_CLIP_PROMPT:
+            return FakeAnswer(grad_clip if grad_clip is not None else k.get("default", ""))
+        return FakeAnswer(next(texts))
+
+    monkeypatch.setattr(questionary, "text", text)
     monkeypatch.setattr(
         questionary,
         "select",
@@ -289,7 +298,7 @@ def test_copy_experiment_momentum_defaults_to_the_source_momentum(tmp_path, monk
             self.value = value
         def ask(self):
             return self.value
-    texts = iter(["copied_exp", "0.9", "2.0", "4", "300", "", "1"])
+    texts = iter(["copied_exp", "0.9", "2.0", "", "4", "300", "", "1"])  # "" = grad clip off
     def fake_text(message, *a, **k):
         defaults.append((message, k.get("default")))
         return FakeAnswer(next(texts))
@@ -348,3 +357,49 @@ def test_copy_experiment_drops_adam_options_when_switching_to_sgd(tmp_path, monk
     assert "betas" not in copy_config
     assert "eps" not in copy_config
     assert "momentum" not in copy_config
+
+
+
+def test_copy_experiment_prefills_and_keeps_the_source_grad_clip(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    config = json.loads(config_path.read_text())
+    config["grad_clip"] = 2.0
+    config_path.write_text(json.dumps(config))
+    defaults = []
+
+    class FakeAnswer:
+        def __init__(self, value):
+            self.value = value
+
+        def ask(self):
+            return self.value
+
+    texts = iter(["copied_exp", "0", "2.0", "4", "300", "", "1"])
+
+    def fake_text(message, *a, **k):
+        if message == GRAD_CLIP_PROMPT:
+            defaults.append(k.get("default"))
+            return FakeAnswer(k.get("default"))
+        return FakeAnswer(next(texts))
+
+    monkeypatch.setattr(questionary, "text", fake_text)
+    monkeypatch.setattr(questionary, "select", lambda *a, **k: FakeAnswer(k.get("default")))
+
+    with open(copy_experiment("source_exp", root=tmp_path)) as f:
+        copied = json.load(f)
+
+    assert defaults == ["2.0"]
+    assert copied["grad_clip"] == 2.0
+
+
+def test_copy_experiment_can_turn_grad_clip_off(tmp_path, monkeypatch):
+    exp_dir = write_source_config(tmp_path, "source_exp")
+    config_path = exp_dir / "experiment.json"
+    config = json.loads(config_path.read_text())
+    config["grad_clip"] = 2.0
+    config_path.write_text(json.dumps(config))
+    fake_prompts(monkeypatch, texts=["copied_exp", "0", "2.0", "4", "300", "", "1"], grad_clip="")
+
+    with open(copy_experiment("source_exp", root=tmp_path)) as f:
+        assert "grad_clip" not in json.load(f)
