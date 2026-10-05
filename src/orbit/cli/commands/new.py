@@ -16,10 +16,11 @@ from orbit.core.config import (
     list_dataset_names,
 )
 from orbit.core.dataset import NORMALIZE_METHODS
+from orbit.settings import load_settings
 from orbit.storage import experiment_dir
+from orbit.ui import PROMPT_STYLE, console, info, success, warning
 
 NORMALIZE_CHOICES = ["none"] + list(NORMALIZE_METHODS)
-from orbit.ui import PROMPT_STYLE, console, info, success, warning
 
 # --- small input helpers -----------------------------------------------------
 # questionary.select is arrow-keys + enter by nature. For free-form numbers
@@ -135,9 +136,15 @@ def _ask_model_layers(dataset) -> list:
 def create_experiment() -> pathlib.Path:
     """
     Interactively build an experiment.json-shaped config and save it to
-    .orbits/experiments/<name>/experiment.json. Does not run it - that's
+    <workspace>/experiments/<name>/experiment.json. Does not run it - that's
     run_experiment()'s job.
+
+    The hyperparameter prompts are pre-filled from the settings file's
+    [defaults] (see orbit/settings.py). Whatever the user accepts is written
+    into experiment.json explicitly, so the saved experiment never depends
+    on the settings file afterwards.
     """
+    defaults = load_settings()["defaults"]
     name = questionary.text("Experiment name:", style=PROMPT_STYLE).ask()
     dataset_name = questionary.select("Dataset:", choices=list_dataset_names(), style=PROMPT_STYLE).ask()
     dataset = build_dataset(dataset_name)
@@ -156,14 +163,23 @@ def create_experiment() -> pathlib.Path:
             "Accuracy tolerance (|prediction - target| counted as correct):",
             default=str(DEFAULT_ACCURACY_TOLERANCE),
         )
-    optimizer = questionary.select("Optimizer:", choices=list(OPTIMIZER_REGISTRY.keys()), style=PROMPT_STYLE).ask()
-    momentum = _ask_momentum(optimizer)
-    normalize = questionary.select("Normalize inputs?", choices=NORMALIZE_CHOICES, style=PROMPT_STYLE).ask()
-    learning_rate = _ask_float("Learning rate:", default=DEFAULT_LEARNING_RATES.get(optimizer, ""))
-    grad_clip = _ask_grad_clip()
-    batch_size = _ask_optional_int("Batch size (blank = default 32):")
-    epochs = _ask_int("Epochs:")
-    test_split = _ask_optional_float("Test split fraction (0-1, blank = no split):")
+    optimizer = questionary.select(
+        "Optimizer:", choices=list(OPTIMIZER_REGISTRY.keys()), default=defaults["optimizer"], style=PROMPT_STYLE
+    ).ask()
+    momentum = _ask_momentum(optimizer, default=_format_default(defaults["momentum"]))
+    normalize = questionary.select(
+        "Normalize inputs?", choices=NORMALIZE_CHOICES, default=defaults["normalize"], style=PROMPT_STYLE
+    ).ask()
+    learning_rate = _ask_float("Learning rate:", default=_format_default(default_learning_rate(optimizer, defaults)))
+    grad_clip = _ask_grad_clip(default=_format_default(defaults["grad_clip"], zero_as_blank=True))
+    batch_size = _ask_optional_int("Batch size (blank = 32):", default=_format_default(defaults["batch_size"]))
+    epochs = _ask_int("Epochs:", default=_format_default(defaults["epochs"]))
+    test_split = _ask_optional_float(
+        "Test split fraction (0-1, blank = no split):",
+        default=_format_default(defaults["test_split"], zero_as_blank=True),
+    )
+    if not test_split:
+        test_split = None
     seed = _ask_optional_int("Seed (blank = random):")
     if seed is None:
         seed = int(np.random.randint(0, 2**31 - 1))
@@ -207,10 +223,20 @@ def create_experiment() -> pathlib.Path:
     return config_path
 
 
-# Pre-filled learning rate per optimizer - Adam's step size is roughly
-# lr per weight regardless of gradient scale, so its conventional default
-# (1e-3) is safe; plain SGD has no such universal value, so it stays blank.
-DEFAULT_LEARNING_RATES = {"Adam": "0.001"}
+def default_learning_rate(optimizer: str, defaults: dict) -> float:
+    """
+    The settings' pre-filled learning rate for an optimizer. Adam gets its
+    own (adam_learning_rate, conventionally 1e-3): its step is roughly lr per
+    weight regardless of gradient scale, so SGD's default would be far too big.
+    """
+    return defaults["adam_learning_rate"] if optimizer == "Adam" else defaults["learning_rate"]
+
+
+def _format_default(value, zero_as_blank: bool = False) -> str:
+    """A settings value as a prompt's pre-filled text: 0.1 -> "0.1", 32 -> "32"."""
+    if zero_as_blank and not value:
+        return ""
+    return f"{value:g}" if isinstance(value, float) else str(value)
 
 
 def _ask_momentum(optimizer, default="0"):

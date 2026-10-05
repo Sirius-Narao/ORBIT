@@ -39,7 +39,7 @@ DEFAULT_SETTINGS = {
         "momentum": 0.0,
         "batch_size": 32,
         "epochs": 1000,
-        "test_split": 0.2,
+        "test_split": 0.0,
         "normalize": "none",
         "grad_clip": 0.0,
     },

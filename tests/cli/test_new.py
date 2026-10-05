@@ -461,3 +461,91 @@ def test_config_summary_shows_grad_clip(capsys):
     assert "Grad clip" in out
     assert "2.5" in out
     assert "off" in out
+
+
+def test_create_experiment_prefills_prompts_from_settings_defaults(tmp_path, monkeypatch):
+    from orbit.settings import load_settings, save_settings, set_value
+
+    settings = load_settings()
+    for key, value in [
+        ("defaults.optimizer", "Adam"),
+        ("defaults.adam_learning_rate", "0.005"),
+        ("defaults.batch_size", "16"),
+        ("defaults.epochs", "250"),
+        ("defaults.test_split", "0.25"),
+        ("defaults.normalize", "standard"),
+        ("defaults.grad_clip", "2"),
+    ]:
+        settings = set_value(settings, key, value)
+    save_settings(settings)
+
+    monkeypatch.setattr("orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name)
+    defaults_seen = {}
+
+    class Answer:
+        def __init__(self, value):
+            self.value = value
+
+        def ask(self):
+            return self.value
+
+    def fake_text(message, default="", **kwargs):
+        defaults_seen[message] = default
+        # Accept the pre-filled value, like pressing enter.
+        canned = {"Experiment name:": "prefilled", "  neurons (size of this layer's output):": "1",
+                  "Seed (blank = random):": "7"}
+        return Answer(canned.get(message, default))
+
+    layer_answers = iter(["Linear", "Done"])
+
+    def fake_select(message, choices, default=None, **kwargs):
+        defaults_seen[message] = default
+        if message == "Add a layer:":
+            return Answer(next(layer_answers))
+        canned = {"Dataset:": "xor", "Loss:": "MSE", "Track accuracy?": "No (not tracked)"}
+        return Answer(canned.get(message, default))
+
+    monkeypatch.setattr(questionary, "text", fake_text)
+    monkeypatch.setattr(questionary, "select", fake_select)
+
+    config_path = create_experiment()
+
+    with open(config_path) as f:
+        config = json.load(f)
+    assert defaults_seen["Optimizer:"] == "Adam"
+    assert defaults_seen["Normalize inputs?"] == "standard"
+    assert config["optimizer"] == "Adam"
+    assert config["learning_rate"] == 0.005
+    assert config["batch_size"] == 16
+    assert config["epochs"] == 250
+    assert config["test_split"] == 0.25
+    assert config["normalize"] == "standard"
+    assert config["grad_clip"] == 2.0
+
+
+def test_create_experiment_without_settings_keeps_the_old_blank_defaults(tmp_path, monkeypatch):
+    # No settings file: test split and grad clip stay blank (off), as before
+    # settings existed.
+    monkeypatch.setattr("orbit.cli.commands.new.experiment_dir", lambda name: tmp_path / name)
+    seen = {}
+
+    class Answer:
+        def __init__(self, value):
+            self.value = value
+
+        def ask(self):
+            return self.value
+
+    def fake_text(message, default="", **kwargs):
+        seen[message] = default
+        return Answer({"Experiment name:": "x", "  neurons (size of this layer's output):": "1"}.get(message, default))
+
+    selects = iter(["xor", "Linear", "Done", "MSE", "No (not tracked)", "SGD", "none"])
+    monkeypatch.setattr(questionary, "text", fake_text)
+    monkeypatch.setattr(questionary, "select", lambda *a, **k: Answer(next(selects)))
+
+    create_experiment()
+
+    assert seen["Test split fraction (0-1, blank = no split):"] == ""
+    assert seen[GRAD_CLIP_PROMPT] == ""
+    assert seen["Learning rate:"] == "0.1"
