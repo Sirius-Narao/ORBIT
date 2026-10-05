@@ -17,7 +17,9 @@ def accuracy_multiclass(y_pred: Tensor, y_true: Tensor) -> float:
     (argmax over the last axis of y_pred) matches the true class index.
     """
     predictions = np.argmax(y_pred.data, axis=-1)
-    labels = y_true.data.astype(int)
+    # Flatten (N, 1) dataset targets to (N,); comparing (N,) with (N, 1)
+    # would broadcast to an (N, N) matrix.
+    labels = y_true.data.astype(int).reshape(predictions.shape)
     return float(np.mean(predictions == labels))
 
 

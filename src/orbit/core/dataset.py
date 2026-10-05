@@ -1,6 +1,6 @@
 from orbit.core import Tensor
 import numpy as np
-from typing import Union, Tuple
+from typing import Optional, Union, Tuple
 
 class Dataset:
     """
@@ -17,6 +17,15 @@ class Dataset:
     def output_shape(self):
         raise NotImplementedError
 
+    @property
+    def num_classes(self):
+        """
+        The number of classes when targets are class indices (one integer
+        per sample, e.g. a categorical target column), else None. The model
+        then needs num_classes outputs, so output_shape reports it too.
+        """
+        return None
+
     def __len__(self) -> int:
         raise NotImplementedError
 
@@ -27,7 +36,14 @@ class Dataset:
         raise NotImplementedError
 
 class TensorDataset(Dataset):
-    def __init__(self, X: Union[np.ndarray, "Tensor"], Y: Union[np.ndarray, "Tensor"]):
+    """
+    num_classes marks Y as class indices: one integer in [0, num_classes)
+    per sample, shape (N,) or (N, 1), stored as (N, 1). That's the target
+    format CrossEntropy and accuracy_multiclass expect, and output_shape is
+    then num_classes (the model's output width), not Y's width of 1.
+    """
+    def __init__(self, X: Union[np.ndarray, "Tensor"], Y: Union[np.ndarray, "Tensor"],
+                 num_classes: Optional[int] = None):
         super().__init__()
         self.X = X
         self.Y = Y
@@ -47,13 +63,26 @@ class TensorDataset(Dataset):
         if self.X.shape[0] != self.Y.shape[0]:
             raise ValueError(f"Error: X number of rows ({self.X.shape[0]}) and Y number rows ({self.Y.shape[0]}) differ!")
 
+        self._num_classes = num_classes
+        if num_classes is not None:
+            if self.Y.ndim == 1:
+                self.Y = self.Y.reshape(-1, 1)
+            if self.Y.ndim != 2 or self.Y.shape[1] != 1:
+                raise ValueError(f"Class-index targets must be one column, got shape {self.Y.shape}")
+            if np.any(self.Y != np.round(self.Y)) or self.Y.min() < 0 or self.Y.max() >= num_classes:
+                raise ValueError(f"Class-index targets must be integers in [0, {num_classes})")
+
     @property
     def input_shape(self):
         return self.X.shape[-1]
 
     @property
     def output_shape(self):
-        return self.Y.shape[-1]
+        return self._num_classes if self._num_classes is not None else self.Y.shape[-1]
+
+    @property
+    def num_classes(self):
+        return self._num_classes
 
 
     def __len__(self):
@@ -81,6 +110,10 @@ class Subset(Dataset):
     @property
     def output_shape(self):
         return self.dataset.output_shape
+
+    @property
+    def num_classes(self):
+        return self.dataset.num_classes
 
     def __len__(self):
         return len(self.indices)
@@ -169,6 +202,10 @@ class NormalizedDataset(Dataset):
     @property
     def output_shape(self):
         return self.dataset.output_shape
+
+    @property
+    def num_classes(self):
+        return self.dataset.num_classes
 
     def __len__(self):
         return len(self.dataset)

@@ -32,6 +32,18 @@ def test_accuracy_multiclass_partial_match():
     assert accuracy_multiclass(y_pred, y_true) == 2 / 3
 
 
+def test_accuracy_multiclass_accepts_column_targets():
+    """
+    Same predictions as above, targets as a (3, 1) column like a DataLoader
+    batch: still 2 of 3. (Before the fix, (3,) == (3, 1) broadcast to a
+    3x3 comparison matrix, whose mean was 1/3.)
+    """
+    y_pred = Tensor([[0.1, 0.7, 0.2], [0.8, 0.1, 0.1], [0.2, 0.2, 0.6]])
+    y_true = Tensor([[1], [0], [1]])
+
+    assert accuracy_multiclass(y_pred, y_true) == 2 / 3
+
+
 # --- regression metrics ------------------------------------------------------
 
 import numpy as np

@@ -29,6 +29,11 @@ class CrossEntropy(Loss):
 
         # --- gather the probability assigned to the true class ---
         indices = y_true.data.astype(int)                                  # 1-D integer array
+        if indices.ndim == 2 and indices.shape[1] == 1:
+            # A dataset yields one target column per sample, (N, 1). Fancy
+            # indexing with arange(N) and an (N, 1) array would broadcast to
+            # (N, N) and pick the wrong entries, so flatten it to (N,).
+            indices = indices[:, 0]
         if probs.ndim == 1:
             # single sample: probs shape (C,), indices is a scalar
             true_probs = probs[indices]

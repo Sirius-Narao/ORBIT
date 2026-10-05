@@ -182,6 +182,7 @@ def test_create_experiment_dataset_picker_includes_imported_datasets(
     class FakeImportedDataset:
         input_shape = 3
         output_shape = 1
+        num_classes = None
 
     monkeypatch.setattr(
         "orbit.cli.commands.new.build_dataset", lambda name: FakeImportedDataset()

@@ -234,3 +234,35 @@ def test_normalized_dataset_works_over_a_subset():
 
     assert len(dataset) == 2
     assert np.allclose(dataset[1][0], [1.0])
+
+
+# --- class-index targets (num_classes) ----------------------------------------
+
+def test_class_index_targets_report_num_classes_as_output_shape():
+    dataset = TensorDataset(np.zeros((4, 2)), np.array([0, 2, 1, 2]), num_classes=3)
+
+    assert dataset.num_classes == 3
+    assert dataset.output_shape == 3
+    assert dataset.Y.shape == (4, 1)
+
+
+def test_plain_targets_have_no_num_classes():
+    dataset = TensorDataset(np.zeros((2, 2)), np.zeros((2, 1)))
+
+    assert dataset.num_classes is None
+    assert dataset.output_shape == 1
+
+
+def test_views_delegate_num_classes():
+    dataset = TensorDataset(np.random.randn(6, 2), np.array([0, 1, 2, 0, 1, 2]), num_classes=3)
+    train, test = train_test_split(dataset, 0.5)
+    normalized = NormalizedDataset(train, fit_normalizer(dataset.X, "standard"))
+
+    assert train.num_classes == test.num_classes == normalized.num_classes == 3
+    assert normalized.output_shape == 3
+
+
+@pytest.mark.parametrize("labels", [[0, 3], [0, -1], [0, 1.5]])
+def test_class_index_targets_must_be_valid_indices(labels):
+    with pytest.raises(ValueError):
+        TensorDataset(np.zeros((2, 1)), np.array(labels), num_classes=3)

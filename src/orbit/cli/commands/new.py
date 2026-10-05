@@ -148,10 +148,17 @@ def create_experiment() -> pathlib.Path:
     name = questionary.text("Experiment name:", style=PROMPT_STYLE).ask()
     dataset_name = questionary.select("Dataset:", choices=list_dataset_names(), style=PROMPT_STYLE).ask()
     dataset = build_dataset(dataset_name)
-    info(
-        f"Dataset {dataset_name!r}: {dataset.input_shape} input feature(s), "
-        f"{dataset.output_shape} output feature(s)"
-    )
+    if dataset.num_classes is not None:
+        info(
+            f"Dataset {dataset_name!r}: {dataset.input_shape} input feature(s), "
+            f"{dataset.num_classes} classes - end the model with Linear({dataset.num_classes}) "
+            "(no Softmax: CrossEntropy applies it), use CrossEntropy and multiclass_classification"
+        )
+    else:
+        info(
+            f"Dataset {dataset_name!r}: {dataset.input_shape} input feature(s), "
+            f"{dataset.output_shape} output feature(s)"
+        )
     model = _ask_model_layers(dataset)
     loss = questionary.select("Loss:", choices=list(LOSS_REGISTRY.keys()), style=PROMPT_STYLE).ask()
     task_choice = questionary.select(

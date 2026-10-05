@@ -120,6 +120,27 @@ def test_cross_entropy_backward_matches_softmax_minus_onehot_over_n():
     assert np.allclose(logits.grad, expected_grad)
 
 
+def test_cross_entropy_accepts_column_targets_from_a_dataset():
+    """
+    A Dataset yields one target column per sample, so a DataLoader batch of
+    class indices has shape (N, 1), not (N,). Same logits/classes as
+    test_cross_entropy_forward_batch: the loss and gradient must match the
+    (N,) case exactly. (Before the fix, probs[arange(N), (N, 1) indices]
+    broadcast to an (N, N) block and gave a different, wrong loss.)
+    """
+    logits_data = np.array([[1.0, 2.0, 3.0], [0.5, 0.5, 0.5]])
+    flat = Tensor(logits_data, requires_grad=True)
+    column = Tensor(logits_data, requires_grad=True)
+
+    flat_loss = CrossEntropy()(flat, Tensor([2, 0]))
+    column_loss = CrossEntropy()(column, Tensor([[2], [0]]))
+    flat_loss.backward()
+    column_loss.backward()
+
+    assert np.isclose(column_loss.data, flat_loss.data)
+    assert np.allclose(column.grad, flat.grad)
+
+
 def test_cross_entropy_graph_metadata():
     """
     y_true carries no gradient, so it must not appear as a parent - only
