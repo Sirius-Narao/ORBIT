@@ -643,3 +643,71 @@ def test_load_experiment_without_grad_clip_records_nothing():
     results = load_experiment(config).run()
 
     assert "grad_clip" not in results.hyperparams
+
+
+# --- toy datasets --------------------------------------------------------------
+
+@pytest.mark.parametrize("name, rows, num_classes", [
+    ("moons", 200, None), ("circles", 200, None), ("spirals", 300, 3), ("blobs", 150, 3),
+])
+def test_toy_datasets_have_two_inputs_and_the_expected_targets(name, rows, num_classes):
+    dataset = build_dataset(name)
+
+    assert len(dataset) == rows
+    assert dataset.input_shape == 2
+    assert dataset.num_classes == num_classes
+    assert dataset.output_shape == (num_classes or 1)
+
+
+@pytest.mark.parametrize("name", ["moons", "circles", "spirals", "blobs"])
+def test_toy_datasets_are_identical_on_every_build(name):
+    first, second = build_dataset(name), build_dataset(name)
+
+    assert np.array_equal(first.X, second.X)
+    assert np.array_equal(first.Y, second.Y)
+
+
+def test_toy_datasets_do_not_consume_the_global_rng():
+    # The experiment's seed controls init/split/shuffle through the global
+    # RNG; building a toy dataset must not shift that stream.
+    np.random.seed(5)
+    build_dataset("spirals")
+    after_build = np.random.rand()
+    np.random.seed(5)
+    untouched = np.random.rand()
+
+    assert after_build == untouched
+
+
+def test_toy_datasets_are_listed_for_orbit_new():
+    from orbit.core.config import list_dataset_names
+
+    assert {"moons", "circles", "spirals", "blobs"} <= set(list_dataset_names())
+
+
+def test_blobs_trains_end_to_end_with_cross_entropy():
+    experiment = load_experiment({
+        "name": "blobs_ce",
+        "dataset": "blobs",
+        "model": [
+            {"type": "Linear", "in_features": 2, "neurons": 8},
+            {"type": "Tanh"},
+            {"type": "Linear", "neurons": 3},
+        ],
+        "loss": "CrossEntropy",
+        "optimizer": "Adam",
+        "learning_rate": 0.05,
+        "batch_size": 32,
+        "epochs": 60,
+        "seed": 0,
+        "task": "multiclass_classification",
+        "test_split": 0.2,
+    })
+    experiment.verbose = False
+
+    results = experiment.run()
+
+    # Three well-separated clusters: a correct loss/accuracy pipeline gets
+    # near-perfect test accuracy (with the old (N, 1) broadcasting bug it
+    # could not).
+    assert results.test_accuracy >= 0.9

@@ -11,6 +11,7 @@ from orbit.core import (
     fit_normalizer,
 )
 from orbit.core.experiment import Experiment
+from orbit.core.toy_datasets import TOY_DATASETS
 import functools
 
 from orbit.core.metrics import accuracy, accuracy_multiclass, regression_tolerance, r2_score
@@ -34,6 +35,7 @@ def _xor_dataset() -> Dataset:
 
 DATASET_REGISTRY = {
     "xor": _xor_dataset,
+    **TOY_DATASETS,  # moons, circles, spirals, blobs - see core/toy_datasets.py
 }
 
 def _load_csv_dataset(name: str) -> Dataset:
