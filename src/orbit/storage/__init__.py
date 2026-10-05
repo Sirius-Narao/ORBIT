@@ -8,6 +8,7 @@ from .datasets import (
     dataset_exists,
     list_imported_dataset_names,
     dataset_dir,
+    FEATURES_FILENAME,
 )
 from .experiments import save_results, load_results, experiment_dir
 from .artifacts import (
@@ -32,6 +33,7 @@ __all__ = [
     "dataset_exists",
     "list_imported_dataset_names",
     "dataset_dir",
+    "FEATURES_FILENAME",
     "save_checkpoint",
     "load_checkpoint",
     "checkpoint_exists",

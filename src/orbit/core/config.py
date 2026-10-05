@@ -12,6 +12,7 @@ from orbit.core import (
 )
 from orbit.core.experiment import Experiment
 from orbit.core.toy_datasets import TOY_DATASETS
+from orbit.core.columns import class_indices, encode_column
 import functools
 
 from orbit.core.metrics import accuracy, accuracy_multiclass, regression_tolerance, r2_score
@@ -20,7 +21,13 @@ from orbit.nn.layers import Linear
 from orbit.nn.activations import ReLU, Tanh, Sigmoid, Softmax
 from orbit.nn.losses import MSE, CrossEntropy
 from orbit.nn.optimizers import SGD, Adam
-from orbit.storage import dataset_exists, dataset_dir, load_dataset_manifest, list_imported_dataset_names
+from orbit.storage import (
+    FEATURES_FILENAME,
+    dataset_dir,
+    dataset_exists,
+    list_imported_dataset_names,
+    load_dataset_manifest,
+)
 
 # --- dataset registry -------------------------------------------------------
 # Each entry is a zero-arg factory (not a built Dataset) so every call to
@@ -39,31 +46,42 @@ DATASET_REGISTRY = {
 }
 
 def _load_csv_dataset(name: str) -> Dataset:
+    """
+    Encode an imported CSV with its manifest: each input column becomes 1+
+    numbers per its type (see core/columns.py), concatenated in manifest
+    order. A single categorical target becomes class indices (num_classes).
+    """
     manifest = load_dataset_manifest(name)
     input_columns = manifest["input_columns"]
     output_columns = manifest["output_columns"]
+    column_specs = manifest.get("columns", {})
 
-    csv_path = dataset_dir(name) / "data.csv"
-    with open(csv_path, newline="") as f:
+    directory = dataset_dir(name)
+    with open(directory / "data.csv", newline="", encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
 
-    def _column_values(row, columns):
-        values = []
-        for column in columns:
-            try:
-                values.append(float(row[column]))
-            except ValueError:
-                raise ValueError(
-                    f"Dataset {name!r}: column {column!r} has a non-numeric "
-                    f"value ({row[column]!r}) - only numeric CSV columns are "
-                    "supported"
-                )
-        return values
+    images = {}
+    if any(column_specs.get(c, {}).get("type") == "image" for c in input_columns):
+        with np.load(directory / FEATURES_FILENAME) as features:
+            images = {key: features[key] for key in features.files}
 
-    X = [_column_values(row, input_columns) for row in rows]
-    Y = [_column_values(row, output_columns) for row in rows]
+    def _encode(column):
+        values = [row[column] for row in rows]
+        try:
+            return encode_column(column, column_specs.get(column), values, images.get(column))
+        except ValueError as e:
+            raise ValueError(f"Dataset {name!r}: {e}")
 
-    return TensorDataset(np.array(X), np.array(Y))
+    X = np.concatenate([_encode(c) for c in input_columns], axis=1)
+
+    target_specs = [column_specs.get(c) for c in output_columns]
+    if len(output_columns) == 1 and target_specs[0] is not None and target_specs[0]["type"] == "categorical":
+        column, spec = output_columns[0], target_specs[0]
+        Y = class_indices(column, spec, [row[column] for row in rows])
+        return TensorDataset(X, Y, num_classes=len(spec["categories"]))
+
+    Y = np.concatenate([_encode(c) for c in output_columns], axis=1)
+    return TensorDataset(X, Y)
 
 def list_dataset_names() -> list:
     return list(DATASET_REGISTRY) + list_imported_dataset_names()

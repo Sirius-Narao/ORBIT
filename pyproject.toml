@@ -9,6 +9,7 @@ description = "Open Research & Benchmarking Intelligence Toolkit"
 dependencies = [
     "numpy",
     "matplotlib",
+    "pillow",  # image columns in orbit import (also a matplotlib dependency)
     "questionary",
     "rich",
 ]

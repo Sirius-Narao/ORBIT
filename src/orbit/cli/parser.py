@@ -30,6 +30,7 @@ from orbit.cli.commands.sweep import (
     plot_sweep,
     delete_sweep,
 )
+from orbit.core.columns import DEFAULT_IMAGE_SIZE, DEFAULT_VOCAB_SIZE
 from orbit.core.ranking import RANK_METRICS
 from orbit.core.metrics import format_metric, metric_label
 from orbit.settings import THEMES, load_settings
@@ -329,6 +330,20 @@ def build_parser() -> argparse.ArgumentParser:
     import_parser.add_argument(
         "--target", nargs="+", help="Output/target column(s) (default: prompted interactively)"
     )
+    import_parser.add_argument(
+        "--column-type", action="append", metavar="COLUMN=TYPE", default=[],
+        help="Set a column's type: numeric, categorical, text or image (repeatable; "
+             "default: detected, and asked for non-numeric columns)",
+    )
+    import_parser.add_argument(
+        "--vocab-size", type=int, default=DEFAULT_VOCAB_SIZE,
+        help=f"Text columns: keep this many most frequent words (default: {DEFAULT_VOCAB_SIZE})",
+    )
+    import_parser.add_argument(
+        "--image-size", type=int, default=DEFAULT_IMAGE_SIZE,
+        help=f"Image columns: resize to this many pixels square (default: {DEFAULT_IMAGE_SIZE})",
+    )
+    import_parser.add_argument("--yes", action="store_true", help="Accept the detected column types without asking")
 
     return parser
 
@@ -353,6 +368,17 @@ def _video_options(args: argparse.Namespace) -> tuple:
     else:
         video_format = display["animation_format"]
     return video_format, args.fps if args.fps is not None else display["fps"]
+
+
+def _parse_column_types(pairs: list) -> dict:
+    """["label=categorical", ...] -> {"label": "categorical", ...}"""
+    column_types = {}
+    for pair in pairs:
+        column, separator, column_type = pair.rpartition("=")
+        if not separator or not column:
+            raise ValueError(f"--column-type expects COLUMN=TYPE, got {pair!r}")
+        column_types[column] = column_type
+    return column_types
 
 
 def _resolve_show(args: argparse.Namespace, in_repl: bool) -> bool:
@@ -451,7 +477,14 @@ def _dispatch_command(args: argparse.Namespace, in_repl: bool) -> None:
     elif args.command == "sweep":
         _dispatch_sweep(args)
     elif args.command == "import":
-        import_dataset(args.csv_path, name=args.name, target_columns=args.target)
+        try:
+            column_types = _parse_column_types(args.column_type)
+            import_dataset(
+                args.csv_path, name=args.name, target_columns=args.target, column_types=column_types,
+                vocab_size=args.vocab_size, image_size=args.image_size, assume_yes=args.yes,
+            )
+        except (ValueError, FileNotFoundError) as e:
+            error(str(e))
 
 
 def _dispatch_sweep(args: argparse.Namespace) -> None:

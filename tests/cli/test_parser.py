@@ -224,7 +224,7 @@ def test_import_dispatches_to_import_dataset_with_args(monkeypatch):
     monkeypatch.setattr(
         parser_module,
         "import_dataset",
-        lambda csv_path, name=None, target_columns=None: calls.append(
+        lambda csv_path, name=None, target_columns=None, **kwargs: calls.append(
             (csv_path, name, target_columns)
         ),
     )
@@ -243,7 +243,7 @@ def test_import_dispatches_with_defaults_when_optional_flags_omitted(monkeypatch
     monkeypatch.setattr(
         parser_module,
         "import_dataset",
-        lambda csv_path, name=None, target_columns=None: calls.append(
+        lambda csv_path, name=None, target_columns=None, **kwargs: calls.append(
             (csv_path, name, target_columns)
         ),
     )
@@ -252,6 +252,30 @@ def test_import_dispatches_with_defaults_when_optional_flags_omitted(monkeypatch
     parser_module.main()
 
     assert calls == [("data.csv", None, None)]
+
+
+def test_import_passes_column_types_and_encoding_options(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parser_module, "import_dataset", lambda csv_path, **kwargs: calls.append(kwargs))
+    monkeypatch.setattr("sys.argv", [
+        "orbit", "import", "data.csv", "--target", "label",
+        "--column-type", "label=categorical", "--column-type", "review=text",
+        "--vocab-size", "50", "--image-size", "16", "--yes",
+    ])
+
+    parser_module.main()
+
+    assert calls[0]["column_types"] == {"label": "categorical", "review": "text"}
+    assert (calls[0]["vocab_size"], calls[0]["image_size"], calls[0]["assume_yes"]) == (50, 16, True)
+
+
+def test_import_reports_a_malformed_column_type(monkeypatch, capsys):
+    monkeypatch.setattr(parser_module, "import_dataset", lambda *a, **k: None)
+    monkeypatch.setattr("sys.argv", ["orbit", "import", "data.csv", "--column-type", "label"])
+
+    parser_module.main()
+
+    assert "COLUMN=TYPE" in capsys.readouterr().out
 
 
 def test_plotloss_dispatches_to_plot_experiment_with_name(monkeypatch):

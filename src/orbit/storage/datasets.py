@@ -3,6 +3,10 @@ import json
 from typing import Optional
 from orbit.storage.workspace import datasets_root
 
+# Decoded image columns, written by orbit import next to data.csv: one
+# (rows, height*width) array per image column, keyed by column name.
+FEATURES_FILENAME = "features.npz"
+
 
 def dataset_dir(name: str, root: Optional[pathlib.Path] = None) -> pathlib.Path:
     root = datasets_root(root)

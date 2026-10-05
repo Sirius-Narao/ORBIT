@@ -7,6 +7,7 @@ from rich.markup import escape
 from orbit.cli.commands.animate import snapshot_weights
 from orbit.cli.commands.network import load_trained_experiment, training_arrays
 from orbit.nn.introspection import forward_trace, network_structure, set_weights
+from orbit.core.columns import feature_names
 from orbit.storage import dataset_exists, experiment_dir, load_dataset_manifest
 from orbit.ui import info, success, warning
 from orbit.visualization.animation import DEFAULT_FPS, VideoWriterError
@@ -23,10 +24,12 @@ def _stack(dataset):
 
 
 def _axis_labels(config: dict):
-    """The two input column names for an imported dataset, else generic ones."""
+    """The two input feature names for an imported dataset, else generic ones."""
     names = ["Input 1", "Input 2"]
     if dataset_exists(config["dataset"]):
-        names = list(load_dataset_manifest(config["dataset"])["input_columns"])[:2]
+        # Expanded names, since one categorical column can be both inputs
+        # (e.g. side=left, side=right).
+        names = feature_names(load_dataset_manifest(config["dataset"]))[:2]
     if config.get("normalize", "none") != "none":
         names = [f"{label} (normalized)" for label in names]
     return tuple(names)

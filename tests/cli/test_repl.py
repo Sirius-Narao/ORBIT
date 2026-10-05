@@ -80,7 +80,7 @@ def test_repl_catches_domain_exception_and_keeps_going(monkeypatch, capsys):
     monkeypatch.setattr(
         parser_module,
         "import_dataset",
-        lambda csv_path, name=None, target_columns=None: (_ for _ in ()).throw(
+        lambda csv_path, name=None, target_columns=None, **kwargs: (_ for _ in ()).throw(
             FileNotFoundError("missing.csv not found")
         ),
     )
