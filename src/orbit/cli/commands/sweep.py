@@ -10,7 +10,7 @@ from rich.text import Text
 
 from orbit.cli.commands.plot import plot_experiments
 from orbit.cli.commands.run import DIVERGENCE_HINT, run_experiment
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir
+from orbit.storage import experiment_dir
 from orbit.cli.commands.ranking_display import (
     BEST_MARK,
     METRIC_COLORS,
@@ -37,7 +37,6 @@ from orbit.sweeps.config import (
     ARCHITECTURE_FIELDS,
     FIELD_MINIMUMS,
     SWEEPABLE_FIELDS,
-    SWEEPS_ROOT,
     load_sweep,
     save_sweep,
     sweep_dir,
@@ -45,6 +44,8 @@ from orbit.sweeps.config import (
 )
 from orbit.sweeps.generator import describe_architecture, expand_grid
 from orbit.ui import PROMPT_STYLE, console, info, success, warning
+from orbit.storage import workspace
+from orbit.storage.workspace import experiments_root
 
 _EXPORT_METRICS = ["final_loss", "test_loss", "test_accuracy", "duration_seconds"]
 # Shown in `sweep compare` for context even when not ranked by.
@@ -118,8 +119,8 @@ def _load_or_warn(name: str, sweeps_root: pathlib.Path) -> Optional[dict]:
 def create_sweep(
     name: str,
     base: str,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
-    sweeps_root: pathlib.Path = SWEEPS_ROOT,
+    root: Optional[pathlib.Path] = None,
+    sweeps_root: Optional[pathlib.Path] = None,
 ) -> Optional[pathlib.Path]:
     """
     Interactively build a grid over the base experiment's hyperparameters,
@@ -128,6 +129,8 @@ def create_sweep(
     per-experiment command (inspect/test/reproduce/plot/...) works on a
     single run unchanged. Nothing is trained here - see start_sweep.
     """
+    root = experiments_root(root)
+    sweeps_root = workspace.sweeps_root(sweeps_root)
     if sweep_exists(name, sweeps_root):
         warning(f"Sweep {name} already exists.")
         return None
@@ -212,14 +215,16 @@ def create_sweep(
 
 def start_sweep(
     name: str,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
-    sweeps_root: pathlib.Path = SWEEPS_ROOT,
+    root: Optional[pathlib.Path] = None,
+    sweeps_root: Optional[pathlib.Path] = None,
 ) -> Optional[dict]:
     """
     Train every run that isn't done yet. Runs with results are skipped, so
     re-running this after an interruption (Ctrl-C, a crash) resumes where it
     left off. A run that raises is reported and the sweep moves on.
     """
+    root = experiments_root(root)
+    sweeps_root = workspace.sweeps_root(sweeps_root)
     sweep = _load_or_warn(name, sweeps_root)
     if sweep is None:
         return None
@@ -269,9 +274,11 @@ def start_sweep(
 
 def sweep_status(
     name: str,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
-    sweeps_root: pathlib.Path = SWEEPS_ROOT,
+    root: Optional[pathlib.Path] = None,
+    sweeps_root: Optional[pathlib.Path] = None,
 ) -> Optional[list]:
+    root = experiments_root(root)
+    sweeps_root = workspace.sweeps_root(sweeps_root)
     sweep = _load_or_warn(name, sweeps_root)
     if sweep is None:
         return None
@@ -305,8 +312,8 @@ def compare_sweep(
     by: Optional[list] = None,
     all_metrics: bool = False,
     test_only: bool = False,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
-    sweeps_root: pathlib.Path = SWEEPS_ROOT,
+    root: Optional[pathlib.Path] = None,
+    sweeps_root: Optional[pathlib.Path] = None,
 ) -> Optional[list]:
     """
     Rank the sweep's runs by one or several metrics (default: test loss
@@ -322,6 +329,8 @@ def compare_sweep(
 
     Returns the ranked rows, best first.
     """
+    root = experiments_root(root)
+    sweeps_root = workspace.sweeps_root(sweeps_root)
     if sum([by is not None, all_metrics, test_only]) > 1:
         raise ValueError("Pass only one of by, all_metrics and test_only")
 
@@ -455,9 +464,11 @@ def _mean_std_cell(group: dict, metric: str, is_best: bool):
 def export_sweep(
     name: str,
     output: Optional[str] = None,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
-    sweeps_root: pathlib.Path = SWEEPS_ROOT,
+    root: Optional[pathlib.Path] = None,
+    sweeps_root: Optional[pathlib.Path] = None,
 ) -> Optional[pathlib.Path]:
+    root = experiments_root(root)
+    sweeps_root = workspace.sweeps_root(sweeps_root)
     sweep = _load_or_warn(name, sweeps_root)
     if sweep is None:
         return None
@@ -487,8 +498,8 @@ def plot_sweep(
     name: str,
     log_scale: bool = False,
     metrics: Optional[list] = None,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
-    sweeps_root: pathlib.Path = SWEEPS_ROOT,
+    root: Optional[pathlib.Path] = None,
+    sweeps_root: Optional[pathlib.Path] = None,
 ) -> List[pathlib.Path]:
     """
     Plot the finished runs via `orbit plot`'s machinery. Multi-run plots go
@@ -496,6 +507,8 @@ def plot_sweep(
     long sweeps fall back to comparison_<n>_experiments.png there, which
     two same-sized sweeps would overwrite.
     """
+    root = experiments_root(root)
+    sweeps_root = workspace.sweeps_root(sweeps_root)
     sweep = _load_or_warn(name, sweeps_root)
     if sweep is None:
         return []
@@ -519,8 +532,8 @@ def plot_sweep(
 def delete_sweep(
     name: str,
     yes: bool = False,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
-    sweeps_root: pathlib.Path = SWEEPS_ROOT,
+    root: Optional[pathlib.Path] = None,
+    sweeps_root: Optional[pathlib.Path] = None,
 ) -> Optional[int]:
     """
     Delete a sweep: every run listed in its manifest, then the sweep's own
@@ -531,6 +544,8 @@ def delete_sweep(
     Returns the number of run directories removed, or None if nothing was
     deleted.
     """
+    root = experiments_root(root)
+    sweeps_root = workspace.sweeps_root(sweeps_root)
     sweep = _load_or_warn(name, sweeps_root)
     if sweep is None:
         return None

@@ -6,10 +6,11 @@ from rich.markup import escape
 
 from orbit.cli.commands.network import load_trained_experiment, training_arrays
 from orbit.nn.introspection import forward_trace, network_structure, set_weights, weights_from_arrays
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results, load_snapshots, snapshots_exist
+from orbit.storage import experiment_dir, load_results, load_snapshots, snapshots_exist
 from orbit.ui import info, success, warning
 from orbit.visualization.animation import DEFAULT_FPS, Frame, VideoWriterError, animate_training
 from orbit.visualization.network import rank_nodes
+from orbit.storage.workspace import experiments_root
 
 
 def snapshot_weights(name: str, structure, root: pathlib.Path) -> Optional[List[Tuple[int, list]]]:
@@ -52,13 +53,14 @@ def animate_experiment(
     output: Optional[str] = None,
     log_scale: bool = False,
     show: bool = False,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
+    root: Optional[pathlib.Path] = None,
 ) -> Optional[pathlib.Path]:
     """
     Animate an experiment's training from its recorded weight snapshots.
     Nodes show the mean activation over the training set (or training
     sample N's), recomputed at every snapshot.
     """
+    root = experiments_root(root)
     loaded = load_trained_experiment(name, root)
     if loaded is None:
         return None

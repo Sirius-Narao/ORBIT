@@ -1,14 +1,16 @@
 import pathlib
 from typing import Optional
 
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
+from orbit.storage import experiment_dir, load_results
 from orbit.ui import warning, success
 from orbit.visualization import plot_loss
+from orbit.storage.workspace import experiments_root
 
 
 def plot_experiment(
-    name: str, root: pathlib.Path = EXPERIMENTS_ROOT, log_scale: bool = False
+    name: str, root: Optional[pathlib.Path] = None, log_scale: bool = False
 ) -> Optional[pathlib.Path]:
+    root = experiments_root(root)
     exp_dir = experiment_dir(name, root=root)
     config_path = exp_dir / "experiment.json"
 

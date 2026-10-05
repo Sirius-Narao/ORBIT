@@ -3,7 +3,7 @@ from typing import List, Optional
 
 import questionary
 
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
+from orbit.storage import experiment_dir, load_results
 from orbit.ui import console, success, warning, PROMPT_STYLE
 from orbit.visualization import (
     plot_loss,
@@ -16,7 +16,9 @@ from orbit.visualization import (
     plot_test_loss,
     plot_test_accuracy,
 )
-from orbit.cli.commands.compare import _comparison_filename, COMPARISONS_ROOT
+from orbit.cli.commands.compare import _comparison_filename
+from orbit.storage import workspace
+from orbit.storage.workspace import experiments_root
 
 # Ordered so questionary.checkbox presents per-epoch histories first, then
 # the two scalar test metrics.
@@ -58,9 +60,11 @@ def plot_experiments(
     is_all: bool = False,
     log_scale: bool = False,
     metrics: Optional[list] = None,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
-    comparisons_root: pathlib.Path = COMPARISONS_ROOT,
+    root: Optional[pathlib.Path] = None,
+    comparisons_root: Optional[pathlib.Path] = None,
 ) -> List[pathlib.Path]:
+    root = experiments_root(root)
+    comparisons_root = workspace.comparisons_root(comparisons_root)
     if is_all:
         if not root.exists():
             console.print()

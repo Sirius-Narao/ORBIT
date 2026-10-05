@@ -1,15 +1,15 @@
-from orbit.storage import EXPERIMENTS_ROOT
 from orbit.sweeps.config import list_sweep_names, sweep_dir, sweep_membership, sweeps_root_for
 from orbit.ui import console, success, warning
 import pathlib
 import shutil
 from typing import Optional
+from orbit.storage.workspace import experiments_root
 
 
 def delete_experiments(
     name: str = None,
     is_all: bool = False,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
+    root: Optional[pathlib.Path] = None,
     sweeps_root: Optional[pathlib.Path] = None,
 ) -> None:
     """
@@ -19,9 +19,10 @@ def delete_experiments(
     the sweep will now show it as missing.
 
     sweeps_root defaults to the sweeps dir next to root (sweeps_root_for),
-    never the fixed SWEEPS_ROOT, so pointing root elsewhere (e.g. a test's
+    never the configured sweeps directory, so pointing root elsewhere (e.g. a test's
     tmp_path) can't wipe the real project's sweeps.
     """
+    root = experiments_root(root)
     if sweeps_root is None:
         sweeps_root = sweeps_root_for(root)
 

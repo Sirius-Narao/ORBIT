@@ -3,15 +3,18 @@ import pathlib
 import numpy as np
 
 from orbit.core.ranking import overall_ranking
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
+from orbit.storage import experiment_dir, load_results
+from typing import Optional
+from orbit.storage.workspace import experiments_root
 
 
-def run_status(run_name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> str:
+def run_status(run_name: str, root: Optional[pathlib.Path] = None) -> str:
     """
     Status is derived from disk, never stored in sweep.json, so it can't
     drift out of sync: results.json present -> "done"; experiment.json
     gone (e.g. `orbit delete`d) -> "missing"; otherwise "pending".
     """
+    root = experiments_root(root)
     exp_dir = experiment_dir(run_name, root=root)
     if (exp_dir / "results" / "results.json").exists():
         return "done"
@@ -20,7 +23,8 @@ def run_status(run_name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> str:
     return "pending"
 
 
-def collect_rows(sweep: dict, root: pathlib.Path = EXPERIMENTS_ROOT) -> list:
+def collect_rows(sweep: dict, root: Optional[pathlib.Path] = None) -> list:
+    root = experiments_root(root)
     rows = []
     for run in sweep["runs"]:
         status = run_status(run["name"], root)

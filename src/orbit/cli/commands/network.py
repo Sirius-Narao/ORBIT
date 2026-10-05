@@ -6,9 +6,10 @@ import numpy as np
 
 from orbit.core.config import load_experiment
 from orbit.nn.introspection import forward_trace, network_structure, weights_of
-from orbit.storage import EXPERIMENTS_ROOT, checkpoint_exists, experiment_dir, load_checkpoint
+from orbit.storage import checkpoint_exists, experiment_dir, load_checkpoint
 from orbit.ui import success, warning
 from orbit.visualization.network import plot_network, rank_nodes
+from orbit.storage.workspace import experiments_root
 
 
 def _format_vector(values: np.ndarray, limit: int = 6) -> str:
@@ -67,7 +68,7 @@ def network_experiment(
     sample: Optional[int] = None,
     output: Optional[str] = None,
     show: bool = False,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
+    root: Optional[pathlib.Path] = None,
 ) -> Optional[pathlib.Path]:
     """
     Draw an experiment's network as a PNG. Node colors are the mean
@@ -76,6 +77,7 @@ def network_experiment(
     the whole training set, so a "bright" node really is firing strongly
     for this model.
     """
+    root = experiments_root(root)
     loaded = load_trained_experiment(name, root)
     if loaded is None:
         return None

@@ -7,10 +7,11 @@ from rich.markup import escape
 from orbit.cli.commands.animate import snapshot_weights
 from orbit.cli.commands.network import load_trained_experiment, training_arrays
 from orbit.nn.introspection import forward_trace, network_structure, set_weights
-from orbit.storage import EXPERIMENTS_ROOT, dataset_exists, experiment_dir, load_dataset_manifest
+from orbit.storage import dataset_exists, experiment_dir, load_dataset_manifest
 from orbit.ui import info, success, warning
 from orbit.visualization.animation import DEFAULT_FPS, VideoWriterError
 from orbit.visualization.boundary import BoundaryData, animate_boundary, boundary_grid, plot_boundary
+from orbit.storage.workspace import experiments_root
 
 
 def _stack(dataset):
@@ -38,7 +39,7 @@ def boundary_experiment(
     fps: int = DEFAULT_FPS,
     output: Optional[str] = None,
     show: bool = False,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
+    root: Optional[pathlib.Path] = None,
 ) -> Optional[pathlib.Path]:
     """
     Plot what a 2-input model predicts over the whole input plane, with the
@@ -46,6 +47,7 @@ def boundary_experiment(
     it at every recorded weight snapshot instead, so you watch the boundary
     form.
     """
+    root = experiments_root(root)
     loaded = load_trained_experiment(name, root)
     if loaded is None:
         return None

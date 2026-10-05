@@ -3,8 +3,9 @@ import pathlib
 
 from orbit.core.config import OPTIMIZER_REGISTRY
 from orbit.core.dataset import NORMALIZE_METHODS
+from typing import Optional
+from orbit.storage.workspace import sweeps_root
 
-SWEEPS_ROOT = pathlib.Path(".orbits/sweeps")
 
 # Top-level experiment.json fields a sweep can vary, mapped to how their
 # values are entered/parsed: "float"/"int" are typed as comma-separated
@@ -38,15 +39,18 @@ ARCHITECTURE_FIELDS = ("hidden_width", "hidden_depth", "activation")
 FIELD_MINIMUMS = {"hidden_width": 1, "hidden_depth": 0, "batch_size": 1, "epochs": 1, "grad_clip": 0}
 
 
-def sweep_dir(name: str, root: pathlib.Path = SWEEPS_ROOT) -> pathlib.Path:
+def sweep_dir(name: str, root: Optional[pathlib.Path] = None) -> pathlib.Path:
+    root = sweeps_root(root)
     return root / name
 
 
-def sweep_exists(name: str, root: pathlib.Path = SWEEPS_ROOT) -> bool:
+def sweep_exists(name: str, root: Optional[pathlib.Path] = None) -> bool:
+    root = sweeps_root(root)
     return (sweep_dir(name, root) / "sweep.json").exists()
 
 
-def save_sweep(sweep: dict, root: pathlib.Path = SWEEPS_ROOT) -> pathlib.Path:
+def save_sweep(sweep: dict, root: Optional[pathlib.Path] = None) -> pathlib.Path:
+    root = sweeps_root(root)
     path = sweep_dir(sweep["name"], root) / "sweep.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
@@ -54,21 +58,24 @@ def save_sweep(sweep: dict, root: pathlib.Path = SWEEPS_ROOT) -> pathlib.Path:
     return path
 
 
-def load_sweep(name: str, root: pathlib.Path = SWEEPS_ROOT) -> dict:
+def load_sweep(name: str, root: Optional[pathlib.Path] = None) -> dict:
+    root = sweeps_root(root)
     path = sweep_dir(name, root) / "sweep.json"
     with open(path) as f:
         return json.load(f)
 
 
-def list_sweep_names(root: pathlib.Path = SWEEPS_ROOT) -> list:
+def list_sweep_names(root: Optional[pathlib.Path] = None) -> list:
     """Sweeps on disk: directories under root that hold a sweep.json."""
+    root = sweeps_root(root)
     if not root.exists():
         return []
     return sorted(p.name for p in root.iterdir() if (p / "sweep.json").exists())
 
 
-def sweep_membership(root: pathlib.Path = SWEEPS_ROOT) -> dict:
+def sweep_membership(root: Optional[pathlib.Path] = None) -> dict:
     """{run_name: sweep_name} for every run listed in any sweep manifest."""
+    root = sweeps_root(root)
     membership = {}
     for name in list_sweep_names(root):
         for run in load_sweep(name, root)["runs"]:
@@ -79,11 +86,11 @@ def sweep_membership(root: pathlib.Path = SWEEPS_ROOT) -> dict:
 def sweeps_root_for(experiments_root: pathlib.Path) -> pathlib.Path:
     """
     The sweeps directory that sits next to an experiments directory:
-    .orbits/experiments -> .orbits/sweeps (== SWEEPS_ROOT in normal use).
+    .orbits/experiments -> .orbits/sweeps (== the workspace's sweeps dir in normal use).
 
     Commands that take only an experiments root (orbit list, orbit delete)
-    derive their sweeps root from it instead of defaulting to the fixed
-    SWEEPS_ROOT, so a call pointed at some other experiments directory (a
+    derive their sweeps root from it instead of defaulting to the workspace's
+    sweeps dir, so a call pointed at some other experiments directory (a
     test's tmp_path) can never read - or, for `orbit delete --all`, wipe -
     the real project's .orbits/sweeps/.
     """

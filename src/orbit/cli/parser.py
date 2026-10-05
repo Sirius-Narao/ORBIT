@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from orbit.cli.commands.init import init_project
+from orbit.cli.commands.config import set_config, show_config
 from orbit.cli.commands.new import create_experiment
 from orbit.cli.commands.run import DIVERGENCE_HINT, run_experiment
 from orbit.cli.commands.train import train_experiment
@@ -31,7 +32,7 @@ from orbit.cli.commands.sweep import (
 )
 from orbit.core.ranking import RANK_METRICS
 from orbit.core.metrics import format_metric, metric_label
-from orbit.ui import console, success, warning
+from orbit.ui import console, error, success, warning
 
 # Below this relative improvement between the first and last epoch's loss,
 # a run is flagged as stalled rather than just slow - it's a generic signal
@@ -110,7 +111,20 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Init command
-    init_parser = subparsers.add_parser("init", help="Initialize a new ORBIT project (.orbits/ directory structure)")
+    init_parser = subparsers.add_parser(
+        "init", help="Create the ORBIT workspace (.orbits/) and the settings file pointing to it"
+    )
+    init_parser.add_argument(
+        "path", nargs="?", help="Folder to create .orbits/ in (default: the current directory)"
+    )
+    init_parser.add_argument("--yes", action="store_true", help="Keep the current/default settings without asking")
+
+    # Config command
+    config_parser = subparsers.add_parser("config", help="Show or change ORBIT settings")
+    config_subparsers = config_parser.add_subparsers(dest="config_command")
+    config_set_parser = config_subparsers.add_parser("set", help="Change one setting, e.g. display.theme dark")
+    config_set_parser.add_argument("key", help="Setting name, e.g. display.theme or defaults.batch_size")
+    config_set_parser.add_argument("value", help="New value")
 
     # New command
     new_parser = subparsers.add_parser("new", help="Create a new experiment interactively")
@@ -329,7 +343,15 @@ def _resolve_show(args: argparse.Namespace, in_repl: bool) -> bool:
 
 def _dispatch(args: argparse.Namespace, in_repl: bool = False) -> None:
     if args.command == "init":
-        init_project()
+        init_project(args.path, assume_yes=args.yes)
+    elif args.command == "config":
+        if args.config_command == "set":
+            try:
+                set_config(args.key, args.value)
+            except ValueError as e:
+                error(str(e))
+        else:
+            show_config()
     elif args.command == "new":
         create_experiment()
     elif args.command == "list":

@@ -1,8 +1,8 @@
 import json
 import pathlib
 
+from orbit.storage.workspace import experiments_root, sweeps_root
 from orbit.sweeps.config import (
-    SWEEPS_ROOT,
     list_sweep_names,
     sweep_membership,
     sweeps_root_for,
@@ -36,4 +36,4 @@ def test_sweep_membership_maps_runs_to_their_sweep(tmp_path):
 
 
 def test_sweeps_root_for_matches_the_default_layout():
-    assert sweeps_root_for(pathlib.Path(".orbits/experiments")) == SWEEPS_ROOT
+    assert sweeps_root_for(experiments_root()) == sweeps_root()

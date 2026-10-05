@@ -6,12 +6,40 @@ import orbit.cli.parser as parser_module
 
 def test_init_dispatches_to_init_project(monkeypatch):
     calls = []
-    monkeypatch.setattr(parser_module, "init_project", lambda: calls.append("called"))
+    monkeypatch.setattr(parser_module, "init_project", lambda path, assume_yes: calls.append((path, assume_yes)))
     monkeypatch.setattr("sys.argv", ["orbit", "init"])
 
     parser_module.main()
 
-    assert calls == ["called"]
+    assert calls == [(None, False)]
+
+
+def test_init_passes_path_and_yes(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parser_module, "init_project", lambda path, assume_yes: calls.append((path, assume_yes)))
+    monkeypatch.setattr("sys.argv", ["orbit", "init", "D:/research", "--yes"])
+
+    parser_module.main()
+
+    assert calls == [("D:/research", True)]
+
+
+def test_config_without_subcommand_shows_settings(monkeypatch):
+    calls = []
+    monkeypatch.setattr(parser_module, "show_config", lambda: calls.append("show"))
+    monkeypatch.setattr("sys.argv", ["orbit", "config"])
+
+    parser_module.main()
+
+    assert calls == ["show"]
+
+
+def test_config_set_reports_invalid_values(monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["orbit", "config", "set", "display.theme", "neon"])
+
+    parser_module.main()
+
+    assert "display.theme must be" in capsys.readouterr().out
 
 
 def test_new_dispatches_to_create_experiment(monkeypatch):

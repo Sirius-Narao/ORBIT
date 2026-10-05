@@ -1,8 +1,10 @@
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
+from orbit.storage import experiment_dir, load_results
 from orbit.cli.commands.run import run_experiment
 from orbit.ui import console, success, warning
 import json
 import pathlib
+from typing import Optional
+from orbit.storage.workspace import experiments_root
 
 
 def _describe(results) -> str:
@@ -11,7 +13,8 @@ def _describe(results) -> str:
     return f"final loss {results.final_loss:.4f}"
 
 
-def reproduce_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
+def reproduce_experiment(name: str, root: Optional[pathlib.Path] = None) -> None:
+    root = experiments_root(root)
     exp_dir = experiment_dir(name, root=root)
     results_path = exp_dir / "results" / "results.json"
 

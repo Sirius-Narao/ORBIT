@@ -1,11 +1,14 @@
 import json
 import pathlib
 
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir
+from orbit.storage import experiment_dir
 from orbit.ui import console, success, warning
+from typing import Optional
+from orbit.storage.workspace import experiments_root
 
 
-def rename_experiment(old_name: str, new_name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
+def rename_experiment(old_name: str, new_name: str, root: Optional[pathlib.Path] = None) -> None:
+    root = experiments_root(root)
     if old_name == new_name:
         warning("Old and new names are the same - nothing to do.")
         return

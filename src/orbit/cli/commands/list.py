@@ -1,17 +1,18 @@
 from orbit.cli.commands.ranking_display import format_value
 from orbit.core.metrics import format_metric
 from orbit.core.ranking import overall_ranking
-from orbit.storage import EXPERIMENTS_ROOT, load_results
+from orbit.storage import load_results
 from orbit.sweeps.aggregator import collect_rows, default_rank_metric
 from orbit.sweeps.config import list_sweep_names, load_sweep, sweep_membership, sweeps_root_for
 from orbit.ui import console, warning
 from rich.table import Table
 import pathlib
 from typing import Optional
+from orbit.storage.workspace import experiments_root
 
 
 def list_experiments(
-    root: pathlib.Path = EXPERIMENTS_ROOT,
+    root: Optional[pathlib.Path] = None,
     sweeps_root: Optional[pathlib.Path] = None,
     show_runs: bool = False,
 ) -> None:
@@ -23,6 +24,7 @@ def list_experiments(
     show_runs (`orbit list --runs`). `orbit sweep status` has per-run detail.
     sweeps_root defaults to the sweeps dir next to root (sweeps_root_for).
     """
+    root = experiments_root(root)
     if sweeps_root is None:
         sweeps_root = sweeps_root_for(root)
     names = sorted(p.name for p in root.iterdir() if p.is_dir()) if root.exists() else []

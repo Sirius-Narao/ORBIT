@@ -7,10 +7,9 @@ from .datasets import (
     load_dataset_manifest,
     dataset_exists,
     list_imported_dataset_names,
-    DATASETS_ROOT,
     dataset_dir,
 )
-from .experiments import save_results, load_results, EXPERIMENTS_ROOT, experiment_dir
+from .experiments import save_results, load_results, experiment_dir
 from .artifacts import (
     save_checkpoint,
     load_checkpoint,
@@ -27,13 +26,11 @@ from .artifacts import (
 __all__ = [
     "save_results",
     "load_results",
-    "EXPERIMENTS_ROOT",
     "experiment_dir",
     "save_dataset_manifest",
     "load_dataset_manifest",
     "dataset_exists",
     "list_imported_dataset_names",
-    "DATASETS_ROOT",
     "dataset_dir",
     "save_checkpoint",
     "load_checkpoint",

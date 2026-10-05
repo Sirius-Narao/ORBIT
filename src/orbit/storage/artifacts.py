@@ -3,18 +3,22 @@ import pathlib
 import numpy as np
 
 from orbit.nn import Module
-from orbit.storage.experiments import EXPERIMENTS_ROOT, experiment_dir
+from orbit.storage.experiments import experiment_dir
+from typing import Optional
+from orbit.storage.workspace import experiments_root
 
 
-def checkpoint_path(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> pathlib.Path:
+def checkpoint_path(name: str, root: Optional[pathlib.Path] = None) -> pathlib.Path:
+    root = experiments_root(root)
     return experiment_dir(name, root=root) / "checkpoints" / "model.npz"
 
 
-def checkpoint_exists(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> bool:
+def checkpoint_exists(name: str, root: Optional[pathlib.Path] = None) -> bool:
+    root = experiments_root(root)
     return checkpoint_path(name, root=root).exists()
 
 
-def save_checkpoint(name: str, model: Module, root: pathlib.Path = EXPERIMENTS_ROOT) -> pathlib.Path:
+def save_checkpoint(name: str, model: Module, root: Optional[pathlib.Path] = None) -> pathlib.Path:
     """
     Save a Module's (e.g. a Sequential's) trained parameters, keyed by their
     named_parameters() name (e.g. "0.weight", "0.bias"), to a single .npz
@@ -22,6 +26,7 @@ def save_checkpoint(name: str, model: Module, root: pathlib.Path = EXPERIMENTS_R
     recorded in experiment.json's "model" list and is rebuilt by
     core.config.build_model before a checkpoint is loaded back in.
     """
+    root = experiments_root(root)
     path = checkpoint_path(name, root=root)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -31,13 +36,14 @@ def save_checkpoint(name: str, model: Module, root: pathlib.Path = EXPERIMENTS_R
     return path
 
 
-def load_checkpoint(name: str, model: Module, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
+def load_checkpoint(name: str, model: Module, root: Optional[pathlib.Path] = None) -> None:
     """
     Load a previously saved checkpoint's weights into `model` in place,
     matching each array back to its parameter by named_parameters() name.
     `model` must already have the same architecture the checkpoint was
     saved from (i.e. built via build_model() from the same experiment.json).
     """
+    root = experiments_root(root)
     path = checkpoint_path(name, root=root)
     if not path.exists():
         raise FileNotFoundError(f"No checkpoint found for {name!r} at {path}")
@@ -51,21 +57,24 @@ def load_checkpoint(name: str, model: Module, root: pathlib.Path = EXPERIMENTS_R
 
 # --- training history (weight snapshots) -----------------------------------
 
-def snapshots_path(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> pathlib.Path:
+def snapshots_path(name: str, root: Optional[pathlib.Path] = None) -> pathlib.Path:
+    root = experiments_root(root)
     return experiment_dir(name, root=root) / "checkpoints" / "history.npz"
 
 
-def snapshots_exist(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> bool:
+def snapshots_exist(name: str, root: Optional[pathlib.Path] = None) -> bool:
+    root = experiments_root(root)
     return snapshots_path(name, root=root).exists()
 
 
-def save_snapshots(name: str, recorder, root: pathlib.Path = EXPERIMENTS_ROOT) -> pathlib.Path:
+def save_snapshots(name: str, recorder, root: Optional[pathlib.Path] = None) -> pathlib.Path:
     """
     Save a SnapshotRecorder's weight history to one .npz: each parameter
     name (e.g. "0.weight") maps to its snapshots stacked along a new first
     axis, shape (n_snapshots, *param_shape), plus "_epochs" and "_loss".
     The leading underscore can't clash with a named_parameters() name.
     """
+    root = experiments_root(root)
     path = snapshots_path(name, root=root)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -77,11 +86,12 @@ def save_snapshots(name: str, recorder, root: pathlib.Path = EXPERIMENTS_ROOT) -
     return path
 
 
-def load_snapshots(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> dict:
+def load_snapshots(name: str, root: Optional[pathlib.Path] = None) -> dict:
     """
     {"epochs": (S,), "loss": (S,), "params": {param_name: (S, *shape)}} -
     loss is NaN for epoch 0, recorded before any training.
     """
+    root = experiments_root(root)
     path = snapshots_path(name, root=root)
     if not path.exists():
         raise FileNotFoundError(f"No training history found for {name!r} at {path}")
@@ -94,17 +104,19 @@ def load_snapshots(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> dict:
         }
 
 
-def delete_snapshots(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
+def delete_snapshots(name: str, root: Optional[pathlib.Path] = None) -> None:
     """Remove a stale history, e.g. after a re-run that couldn't record one."""
+    root = experiments_root(root)
     snapshots_path(name, root=root).unlink(missing_ok=True)
 
 
-def save_training_artifacts(name: str, experiment, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
+def save_training_artifacts(name: str, experiment, root: Optional[pathlib.Path] = None) -> None:
     """
     Everything orbit run/train persist besides results.json: the trained
     weights, and the weight history when one was recorded (otherwise any
     older history is removed, since it would no longer match the checkpoint).
     """
+    root = experiments_root(root)
     save_checkpoint(name, experiment.model, root=root)
     if experiment.snapshots is not None:
         save_snapshots(name, experiment.snapshots, root=root)

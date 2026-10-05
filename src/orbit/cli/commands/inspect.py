@@ -3,11 +3,14 @@ import pathlib
 
 from orbit.cli.commands.new import _print_config_summary
 from orbit.core.metrics import format_metric, metric_label
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
+from orbit.storage import experiment_dir, load_results
 from orbit.ui import console, info, warning
+from typing import Optional
+from orbit.storage.workspace import experiments_root
 
 
-def inspect_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> None:
+def inspect_experiment(name: str, root: Optional[pathlib.Path] = None) -> None:
+    root = experiments_root(root)
     exp_dir = experiment_dir(name, root=root)
     config_path = exp_dir / "experiment.json"
 

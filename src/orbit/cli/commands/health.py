@@ -5,9 +5,10 @@ from rich.table import Table
 
 from orbit.cli.commands.network import load_trained_experiment, training_arrays
 from orbit.nn.introspection import forward_trace, network_structure
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir
+from orbit.storage import experiment_dir
 from orbit.ui import console, success, warning
 from orbit.visualization.health import hidden_layer_health, plot_activation_health
+from orbit.storage.workspace import experiments_root
 
 
 def _percent(value) -> str:
@@ -15,7 +16,7 @@ def _percent(value) -> str:
 
 
 def health_experiment(
-    name: str, output: Optional[str] = None, root: pathlib.Path = EXPERIMENTS_ROOT
+    name: str, output: Optional[str] = None, root: Optional[pathlib.Path] = None
 ) -> Optional[pathlib.Path]:
     """
     Check how every hidden layer's units behave over the training set: a
@@ -23,6 +24,7 @@ def health_experiment(
     fraction, a warning per unhealthy layer, and a PNG of per-layer
     activation histograms.
     """
+    root = experiments_root(root)
     loaded = load_trained_experiment(name, root)
     if loaded is None:
         return None

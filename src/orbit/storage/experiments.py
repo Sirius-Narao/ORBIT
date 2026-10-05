@@ -1,8 +1,9 @@
 from orbit.core import Results
 import pathlib
 import json
+from typing import Optional
+from orbit.storage.workspace import experiments_root
 
-EXPERIMENTS_ROOT = pathlib.Path(".orbits/experiments")
 
 def save_results(results: Results, path: str) -> None:
     path = pathlib.Path(path)
@@ -18,6 +19,7 @@ def load_results(path: str) -> Results:
 
     return Results.from_dict(data)
 
-def experiment_dir(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> pathlib.Path:
+def experiment_dir(name: str, root: Optional[pathlib.Path] = None) -> pathlib.Path:
+    root = experiments_root(root)
     return root/name
 

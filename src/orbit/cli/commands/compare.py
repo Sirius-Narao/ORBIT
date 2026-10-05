@@ -17,11 +17,12 @@ from orbit.cli.commands.ranking_display import (
     test_metrics_for,
 )
 from orbit.core.ranking import RANK_METRICS, overall_ranking
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir, load_results
+from orbit.storage import experiment_dir, load_results
 from orbit.ui import console, success, warning
 from orbit.visualization import plot_loss_comparison
+from orbit.storage import workspace
+from orbit.storage.workspace import experiments_root
 
-COMPARISONS_ROOT = pathlib.Path(".orbits/comparisons")
 
 
 def _comparison_filename(names: list, log_scale: bool, metric: str = None) -> str:
@@ -42,8 +43,8 @@ def compare_experiments(
     is_all: bool = False,
     plot_loss: bool = False,
     log_scale: bool = False,
-    root: pathlib.Path = EXPERIMENTS_ROOT,
-    comparisons_root: pathlib.Path = COMPARISONS_ROOT,
+    root: Optional[pathlib.Path] = None,
+    comparisons_root: Optional[pathlib.Path] = None,
     by: Optional[list] = None,
     test_only: bool = False,
 ) -> Optional[list]:
@@ -58,6 +59,8 @@ def compare_experiments(
 
     Returns the ranked rows (best first) when ranking, else None.
     """
+    root = experiments_root(root)
+    comparisons_root = workspace.comparisons_root(comparisons_root)
     if test_only and by is not None:
         raise ValueError("Pass either by or test_only, not both")
 

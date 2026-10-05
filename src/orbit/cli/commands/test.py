@@ -3,7 +3,6 @@ import json
 import pathlib
 
 from orbit.storage import (
-    EXPERIMENTS_ROOT,
     experiment_dir,
     load_results,
     save_results,
@@ -13,9 +12,11 @@ from orbit.storage import (
 from orbit.core import Results
 from orbit.core.config import load_experiment
 from orbit.ui import console, warning
+from orbit.storage.workspace import experiments_root
 
 
-def test_experiment(name: str, root: pathlib.Path = EXPERIMENTS_ROOT) -> Optional[Results]:
+def test_experiment(name: str, root: Optional[pathlib.Path] = None) -> Optional[Results]:
+    root = experiments_root(root)
     exp_dir = experiment_dir(name, root=root)
 
     try:

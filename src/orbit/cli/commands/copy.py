@@ -15,11 +15,13 @@ from orbit.cli.commands.new import (
     _print_config_summary,
 )
 from orbit.core.config import OPTIMIZER_REGISTRY
-from orbit.storage import EXPERIMENTS_ROOT, experiment_dir
+from orbit.storage import experiment_dir
 from orbit.ui import PROMPT_STYLE, console, success, warning
+from typing import Optional
+from orbit.storage.workspace import experiments_root
 
 
-def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
+def copy_experiment(source_name: str, root: Optional[pathlib.Path] = None):
     """
     Build a new experiment.json from an existing one's config: dataset,
     model, loss, and task (if set) are copied unchanged (editing those means
@@ -35,6 +37,7 @@ def copy_experiment(source_name: str, root: pathlib.Path = EXPERIMENTS_ROOT):
     random seed instead, for a copy that's meant to be a genuinely
     independent run.
     """
+    root = experiments_root(root)
     source_config_path = experiment_dir(source_name, root=root) / "experiment.json"
 
     if not source_config_path.exists():
