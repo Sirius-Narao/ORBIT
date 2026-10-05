@@ -1,4 +1,4 @@
-# ORBIT v0.1 — Open Research & Benchmarking Intelligence Toolkit
+# ORBIT v0.2 — Open Research & Benchmarking Intelligence Toolkit
 
 <p align="center">
   <!-- <img src="assets/images/xor_boundary.gif" alt="A network learning XOR: its decision boundary forming epoch by epoch" width="49%"> -->
@@ -36,12 +36,12 @@ pip install -e ".[dev]"
 
 You can begin a project in a few commands.
 
-First, enter the ORBIT REPL with `orbit`, initialize a project with `init` (it creates a `.orbits/` folder in the current directory), and set up a new experiment with `new`. Fill in the form (dataset, layers, loss, optimizer, hyperparameters), then `run <exp>` to train and test it.
+First, enter the ORBIT REPL with `orbit` and set up your workspace with `init`. It creates a `.orbits/` folder (in the current directory, or the path you give it) and asks for your default hyperparameters and plot theme. Every `orbit` command then uses that workspace, from any directory. Next, set up an experiment with `new`: fill in the form (dataset, layers, loss, optimizer, hyperparameters), whose answers start pre-filled with your defaults. Finally, `run <exp>` trains and tests it.
 
 ```text
-orbit> init
+orbit> init D:/research
 orbit> new
-orbit> run xor_mlp
+orbit> run moons_mlp
 ```
 
 Next, analyze the neural network with `network <exp>`, and animate the training process with `animate <exp>`:
@@ -54,7 +54,7 @@ orbit> boundary xor_mlp --animate
 
 Every image, animation and result is saved under `.orbits/experiments/<exp>/results/`.
 
-To enable a quick and simple start, ORBIT comes with a built-in XOR dataset. It only has 4 rows, so a train/test split isn't recommended on it. To use your own data, see [Datasets](#datasets).
+To get started quickly, ORBIT comes with built-in datasets: `xor`, plus the 2-D toy sets `moons`, `circles`, `spirals` and `blobs` (see [Datasets](#datasets)).
 
 ## Seeing inside the network
 
@@ -73,6 +73,8 @@ To enable a quick and simple start, ORBIT comes with a built-in XOR dataset. It 
 </p>
 
 `--show` (on `network`, `animate` and `boundary`) also opens the figure in a window. It works when you call `orbit` directly, but not inside the REPL.
+
+Plots and animations come in a light or a dark theme. Set your default with `orbit config set display.theme dark`, or pick one per command with `--theme dark`.
 
 ## Experiments
 
@@ -106,6 +108,8 @@ An experiment is just a JSON file at `.orbits/experiments/<name>/experiment.json
 | `seed` | Makes the run reproducible: same weights, shuffling and split every time |
 | `task` *(optional)* | Tracks a metric per epoch: `binary_classification`, `multiclass_classification`, `regression_tolerance` (with `accuracy_tolerance`, default 0.5), `regression_r2` |
 | `test_split` *(optional)* | Holds out a fraction (e.g. `0.2`) for a test evaluation after training |
+| `validation_split` *(optional)* | Holds out another fraction of the dataset, measured after every epoch |
+| `patience` *(optional, needs `validation_split`)* | Early stopping: stop once the validation loss hasn't improved for this many epochs, keeping the best epoch's weights |
 | `normalize` *(optional)* | `standard` or `minmax`. Rescales the inputs, using statistics from the training split only |
 | `grad_clip` *(optional)* | Caps the gradient's size per step, which prevents runs from blowing up |
 | `batch_size` *(optional)* | Default `32` |
@@ -114,13 +118,35 @@ If a run diverges (its loss becomes inf/NaN), ORBIT stops it immediately and tel
 
 ## Datasets
 
-The built-in `xor` dataset needs no setup. To bring your own data, import a CSV of numeric columns:
+Built-in datasets need no setup:
+
+| Dataset | Shape |
+|---|---|
+| `xor` | 4 rows, 2 inputs, binary. Too small for a train/test split |
+| `moons`, `circles` | 200 rows, 2 inputs, binary (needs a hidden layer) |
+| `spirals` | 300 rows, 2 inputs, 3 classes (hard) |
+| `blobs` | 150 rows, 2 inputs, 3 classes (easy) |
+
+For a 3-class dataset, end the model with `Linear` 3 (no `Softmax`) and use `CrossEntropy` with the `multiclass_classification` task.
+
+To bring your own data, import a CSV:
 
 ```bash
 orbit import winequality.csv --name wine --target quality
 ```
 
 `--target` names the output column(s). Every other column becomes an input. Leave `--target` out to choose interactively. The dataset is copied to `.orbits/datasets/wine/`, then shows up in `orbit new`'s dataset list.
+
+Columns don't have to be numbers. ORBIT detects each column's type, asks you to confirm the non-numeric ones, and turns every cell into numbers:
+
+| Type | A cell holds | Becomes |
+|---|---|---|
+| `numeric` | a number | itself |
+| `categorical` | a label, e.g. `red` | one-hot vector; as the target, a class |
+| `text` | free text | word counts over the `--vocab-size` (default 1000) most frequent words |
+| `image` | a path to an image, relative to the CSV | grayscale pixels, resized to `--image-size` (default 28) square |
+
+A CSV can't contain images itself, so an image column lists file paths; ORBIT reads the images once at import. To skip the questions, use `--yes`, or set types yourself with `--column-type COLUMN=TYPE`. For example, `--column-type digit=categorical` makes a numeric `0`–`9` label a 10-class target.
 
 ## Sweeps
 
@@ -132,7 +158,7 @@ orbit> sweep start lr_search                    # resumable: re-run it after an 
 orbit> sweep compare lr_search --test           # rank runs by their test metrics
 ```
 
-You can sweep `learning_rate`, `optimizer`, `momentum`, `batch_size`, `epochs`, `seed`, `normalize`, `test_split` and `grad_clip`, plus the architecture: `hidden_width`, `hidden_depth` and `activation`. Every run is an ordinary experiment, so all the commands above work on it.
+You can sweep `learning_rate`, `optimizer`, `momentum`, `batch_size`, `epochs`, `seed`, `normalize`, `test_split`, `grad_clip`, `validation_split` and `patience`, plus the architecture: `hidden_width`, `hidden_depth` and `activation`. Every run is an ordinary experiment, so all the commands above work on it.
 
 ## Commands
 
@@ -141,7 +167,8 @@ You can sweep `learning_rate`, `optimizer`, `momentum`, `batch_size`, `epochs`, 
 | Command | Description |
 |---|---|
 | `orbit` | Open the interactive ORBIT REPL (`help` lists commands, `exit` leaves) |
-| `init` | Create the `.orbits/` project folders |
+| `init [path] [--yes]` | Create the workspace (`<path>/.orbits/`) and the settings file pointing to it |
+| `config` / `config set <key> <value>` | Show or change the settings (workspace, defaults, theme) |
 | `new` | Create an experiment interactively |
 | `run [exp] [--watch]` | Train, then evaluate on the test split if there is one. With no name, it runs `new` first |
 | `train <exp> [--watch]` | Train only, without the test evaluation |
@@ -152,7 +179,7 @@ You can sweep `learning_rate`, `optimizer`, `momentum`, `batch_size`, `epochs`, 
 | `rename <old> <new>` | Rename an experiment |
 | `reproduce <exp>` | Re-run an experiment and check that it gives the same result |
 | `delete <exp>` / `delete --all` | Delete experiments (no confirmation) |
-| `import <csv> [--name] [--target]` | Import a CSV dataset |
+| `import <csv> [--name] [--target] [--column-type COL=TYPE] [--yes]` | Import a CSV dataset |
 
 **Analysis and visualization**
 
@@ -162,8 +189,8 @@ You can sweep `learning_rate`, `optimizer`, `momentum`, `batch_size`, `epochs`, 
 | `plot <exp> ... [--all] [--metrics ...] [--logscale]` | Plot metrics for one or many experiments (asks which ones if `--metrics` is omitted) |
 | `plotloss <exp> [--logscale]` | Plot one experiment's loss curve |
 | `network <exp> [--sample N] [--output] [--show]` | Network diagram |
-| `animate <exp> [--sample N] [--mp4] [--fps N] [--logscale] [--output] [--show]` | Training animation |
-| `boundary <exp> [--animate] [--mp4] [--fps N] [--output] [--show]` | Decision boundary (2-input datasets) |
+| `animate <exp> [--sample N] [--gif \| --mp4] [--fps N] [--logscale] [--output] [--show]` | Training animation |
+| `boundary <exp> [--animate] [--gif \| --mp4] [--fps N] [--output] [--show]` | Decision boundary (2-input datasets) |
 | `health <exp> [--output]` | Dead/saturated units per hidden layer |
 
 **Sweeps**
@@ -178,12 +205,36 @@ You can sweep `learning_rate`, `optimizer`, `momentum`, `batch_size`, `epochs`, 
 | `sweep plot <name> [--metrics ...] [--logscale]` | Plot the finished runs |
 | `sweep delete <name> [--yes]` | Delete the sweep and its runs |
 
-Add `-h` to any command for its full options, e.g. `orbit animate -h`.
+Add `-h` to any command for its full options, e.g. `orbit animate -h`. Every command that draws something also takes `--theme dark|light`.
 
-## Known limitations (v0.1)
+## Settings
 
-- **Models:** a model is a stack of `Linear` layers and activations. There are no convolutional or recurrent layers yet.
-- **Imported datasets:** CSV files with numeric columns only. There's no categorical encoding or missing-value handling.
+`orbit init` writes the settings file, `~/.orbit/config.toml`. Set `ORBIT_CONFIG` to use another file, for example a second workspace. You can edit it by hand or with `orbit config set`:
+
+```toml
+workspace = "D:/research/.orbits"
+
+[defaults]          # pre-filled answers for `orbit new`
+optimizer = "SGD"
+learning_rate = 0.1
+adam_learning_rate = 0.001
+batch_size = 32
+epochs = 1000
+test_split = 0.2    # 0 = no split
+normalize = "standard"
+
+[display]
+theme = "dark"      # or "light"
+animation_format = "gif"
+fps = 10
+```
+
+Defaults only pre-fill `orbit new`. Whatever you accept is saved in the experiment itself, so changing the settings later never changes an existing experiment or how it reproduces.
+
+## Known limitations (v0.2)
+
+- **Models:** a model is a stack of `Linear` layers and activations. There are no convolutional or recurrent layers yet, so images are seen as flat pixel vectors and text as word counts.
+- **Imported datasets:** CSV only, with no missing-value handling (an empty cell in a numeric column is an error). Categories and the text vocabulary are taken from the whole file at import.
 - **Interactive prompts need a real terminal:** `new`, `copy`, `sweep create` and the REPL can't read piped input (`orbit < file`). All other commands can be scripted.
 - **`--show` needs Tk** to open a window. Without it, ORBIT saves the file and tells you.
 
