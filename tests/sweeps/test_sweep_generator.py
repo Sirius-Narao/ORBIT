@@ -260,3 +260,11 @@ def test_expand_grid_grad_clip_zero_dedupes_with_a_base_without_clipping():
     runs = expand_grid("s", BASE, {"grad_clip": [0, 0.0], "learning_rate": [0.1]})
 
     assert len(runs) == 1
+
+
+def test_patience_is_dropped_where_there_is_no_validation_set():
+    runs = expand_grid("s", BASE, {"validation_split": [0, 0.2], "patience": [10]})
+
+    assert len(runs) == 2
+    assert "validation_split" not in runs[0][2] and "patience" not in runs[0][2]
+    assert runs[1][2]["validation_split"] == 0.2 and runs[1][2]["patience"] == 10

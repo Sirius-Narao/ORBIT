@@ -695,3 +695,18 @@ def test_theme_flag_applies_during_the_command_only(monkeypatch):
 
     assert seen == ["dark"]
     assert resolve_theme() == "light"
+
+
+def test_report_training_mentions_early_stopping(capsys):
+    from orbit.core import Results
+
+    results = Results(
+        name="r", final_loss=0.1, loss_history=[0.5, 0.3, 0.2, 0.1],
+        val_loss_history=[0.6, 0.4, 0.45, 0.5], best_epoch=2, stopped_early_at_epoch=4,
+    )
+
+    parser_module._report_training(results)
+
+    out = capsys.readouterr().out
+    assert "Stopped early at epoch 4" in out
+    assert "since epoch 2 (0.4)" in out

@@ -228,6 +228,26 @@ def parse_grad_clip(config: dict) -> Optional[float]:
         raise ValueError(f'"grad_clip" must be positive (or 0 for no clipping), got {value!r}')
     return float(value)
 
+def parse_early_stopping(config: dict) -> tuple:
+    """
+    (validation_split, patience) from a config, both None when absent.
+    validation_split must be in (0, 1); patience a whole number >= 1 that
+    needs a validation_split (early stopping watches the validation loss).
+    """
+    validation_split = config.get("validation_split")
+    patience = config.get("patience")
+    if validation_split is not None:
+        if isinstance(validation_split, bool) or not 0 < float(validation_split) < 1:
+            raise ValueError(f"validation_split must be between 0 and 1, got {validation_split!r}")
+        validation_split = float(validation_split)
+    if patience is not None:
+        if isinstance(patience, bool) or not isinstance(patience, int) or patience < 1:
+            raise ValueError(f"patience must be a whole number >= 1, got {patience!r}")
+        if validation_split is None:
+            raise ValueError("patience (early stopping) needs a validation_split to watch")
+    return validation_split, patience
+
+
 def load_experiment(config: dict) -> Experiment:
     """
     Build an Experiment from a parsed experiment.json-shaped dict. Does not
@@ -255,6 +275,10 @@ def load_experiment(config: dict) -> Experiment:
 
     An optional "grad_clip" caps every batch's global gradient norm (see
     parse_grad_clip); absent means training exactly as before it existed.
+
+    An optional "validation_split" holds out a further fraction of the
+    dataset that is measured after every epoch, and "patience" turns that
+    into early stopping (see parse_early_stopping and Trainer._validate).
     """
     grad_clip = parse_grad_clip(config)
     seed = config.get("seed")
@@ -267,7 +291,20 @@ def load_experiment(config: dict) -> Experiment:
         test_split = config["test_split"] if config["test_split"] is not None else 0.2
         train_dataset, test_dataset = train_test_split(dataset, test_split)
     else:
+        test_split = 0.0
         train_dataset, test_dataset = dataset, None
+
+    # The validation set is drawn from what's left after the test split, so
+    # a config without "validation_split" draws nothing extra from the RNG
+    # and its seeded run is unchanged. validation_split is a fraction of the
+    # whole dataset, hence the rescaling: 0.2 of all rows is
+    # 0.2 / (1 - test_split) of the remaining ones.
+    validation_split, patience = parse_early_stopping(config)
+    val_dataset = None
+    if validation_split:
+        if validation_split + test_split >= 1:
+            raise ValueError("validation_split + test_split must leave some rows for training")
+        train_dataset, val_dataset = train_test_split(train_dataset, validation_split / (1 - test_split))
 
     method = config.get("normalize", "none")
     if method != "none":
@@ -276,6 +313,8 @@ def load_experiment(config: dict) -> Experiment:
         train_dataset = NormalizedDataset(train_dataset, stats)
         if test_dataset is not None:
             test_dataset = NormalizedDataset(test_dataset, stats)
+        if val_dataset is not None:
+            val_dataset = NormalizedDataset(val_dataset, stats)
 
     model = build_model(config["model"], train_dataset)
     loss_fn = build_loss(config["loss"])
@@ -287,6 +326,11 @@ def load_experiment(config: dict) -> Experiment:
     test_dataloader = (
         DataLoader(test_dataset, batch_size=config.get("batch_size", 32), shuffle=False)
         if test_dataset is not None
+        else None
+    )
+    val_dataloader = (
+        DataLoader(val_dataset, batch_size=config.get("batch_size", 32), shuffle=False)
+        if val_dataset is not None
         else None
     )
     task = config.get("task")
@@ -311,6 +355,8 @@ def load_experiment(config: dict) -> Experiment:
         task=task,
         accuracy_tolerance=accuracy_tolerance,
         grad_clip=grad_clip,
+        val_dataloader=val_dataloader,
+        patience=patience,
     )
 
 if __name__ == "__main__":

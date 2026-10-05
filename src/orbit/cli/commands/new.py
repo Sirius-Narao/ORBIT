@@ -79,6 +79,41 @@ def _ask_grad_clip(default=""):
     return float(answer) if answer and float(answer) > 0 else None
 
 
+VALIDATION_SPLIT_PROMPT = "Validation split fraction (0-1, blank = none):"
+PATIENCE_PROMPT = "Early stopping patience (epochs without improvement, blank = off):"
+
+
+def _ask_early_stopping(default_split="", default_patience=""):
+    """
+    Optional validation split, then - only when one was given - the early
+    stopping patience. Returns (validation_split, patience), None for blank.
+    """
+    def validate_split(text):
+        text = text.strip()
+        if text == "":
+            return True
+        try:
+            return True if 0 < float(text) < 1 else "Please enter a fraction between 0 and 1, or leave blank"
+        except ValueError:
+            return "Please enter a number, or leave blank"
+
+    answer = questionary.text(
+        VALIDATION_SPLIT_PROMPT, default=default_split, validate=validate_split, style=PROMPT_STYLE
+    ).ask().strip()
+    if not answer:
+        return None, None
+    validation_split = float(answer)
+
+    def validate_patience(text):
+        text = text.strip()
+        return text == "" or (text.isdigit() and int(text) >= 1) or "Please enter a whole number >= 1, or leave blank"
+
+    answer = questionary.text(
+        PATIENCE_PROMPT, default=default_patience, validate=validate_patience, style=PROMPT_STYLE
+    ).ask().strip()
+    return validation_split, int(answer) if answer else None
+
+
 def _ask_optional_float(message, default=""):
     def validate(text):
         text = text.strip()
@@ -187,6 +222,7 @@ def create_experiment() -> pathlib.Path:
     )
     if not test_split:
         test_split = None
+    validation_split, patience = _ask_early_stopping()
     seed = _ask_optional_int("Seed (blank = random):")
     if seed is None:
         seed = int(np.random.randint(0, 2**31 - 1))
@@ -215,6 +251,10 @@ def create_experiment() -> pathlib.Path:
         config["momentum"] = momentum
     if grad_clip is not None:
         config["grad_clip"] = grad_clip
+    if validation_split is not None:
+        config["validation_split"] = validation_split
+    if patience is not None:
+        config["patience"] = patience
 
     _print_config_summary(config)
 
@@ -295,6 +335,11 @@ def _print_config_summary(config: dict) -> None:
     table.add_row("Batch size", str(config.get("batch_size", "32 (default)")))
     table.add_row("Epochs", str(config["epochs"]))
     table.add_row("Test split", str(config.get("test_split", "none")))
+    table.add_row("Validation split", str(config.get("validation_split", "none")))
+    table.add_row(
+        "Early stopping",
+        f"patience {config['patience']}" if config.get("patience") else "off",
+    )
     table.add_row("Normalize", config.get("normalize", "none"))
     table.add_row("Seed", str(config.get("seed", "none (not reproducible)")))
     console.print()

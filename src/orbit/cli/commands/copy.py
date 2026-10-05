@@ -7,6 +7,7 @@ import questionary
 from orbit.cli.commands.new import (
     NORMALIZE_CHOICES,
     _ask_float,
+    _ask_early_stopping,
     _ask_momentum,
     _ask_grad_clip,
     _ask_int,
@@ -70,6 +71,10 @@ def copy_experiment(source_name: str, root: Optional[pathlib.Path] = None):
     test_split = _ask_optional_float(
         "Test split fraction (0-1, blank = no split):", default=str(source.get("test_split", ""))
     )
+    validation_split, patience = _ask_early_stopping(
+        default_split=str(source.get("validation_split", "")),
+        default_patience=str(source.get("patience", "")),
+    )
     seed = _ask_optional_int(
         "Seed (blank = random):", default=str(source.get("seed", ""))
     )
@@ -100,6 +105,10 @@ def copy_experiment(source_name: str, root: Optional[pathlib.Path] = None):
         config["momentum"] = momentum
     if grad_clip is not None:
         config["grad_clip"] = grad_clip
+    if validation_split is not None:
+        config["validation_split"] = validation_split
+    if patience is not None:
+        config["patience"] = patience
     if optimizer == source["optimizer"] == "Adam":
         for option in ("betas", "eps"):
             if option in source:

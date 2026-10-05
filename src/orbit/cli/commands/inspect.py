@@ -46,6 +46,12 @@ def inspect_experiment(name: str, root: Optional[pathlib.Path] = None) -> None:
         if results.test_accuracy is not None:
             message += f", test {name} {format_metric(results.test_accuracy, task)}"
         info(message)
+        if results.best_epoch is not None:
+            val_loss = results.val_loss_history[results.best_epoch - 1]
+            line = f"Best validation loss {val_loss:.4g} at epoch {results.best_epoch} (weights kept)"
+            if results.stopped_early_at_epoch is not None:
+                line += f", stopped early at epoch {results.stopped_early_at_epoch}"
+            info(line)
         if results.diverged_at_epoch is not None:
             warning(
                 f"Diverged at epoch {results.diverged_at_epoch} - the loss became inf/NaN and "

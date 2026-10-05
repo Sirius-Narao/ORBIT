@@ -2,7 +2,12 @@ import pathlib
 from typing import List
 
 from orbit.core import Results
-from orbit.visualization.comparison_style import add_legend, line_colors
+from orbit.visualization.comparison_style import (
+    VALIDATION_TITLE_NOTE,
+    add_legend,
+    line_colors,
+    plot_validation,
+)
 from orbit.core.metrics import metric_label
 from orbit.visualization.theme import theme_color, themed
 
@@ -38,7 +43,11 @@ def plot_accuracy(results: Results, output_path: pathlib.Path, log_scale: bool =
     label = accuracy_axis_label([results])
     fig, ax = plt.subplots()
     epochs = range(1, len(results.accuracy_history) + 1)
-    ax.plot(epochs, results.accuracy_history, color=theme_color("accent"))
+    ax.plot(epochs, results.accuracy_history, color=theme_color("accent"), label="training")
+    if plot_validation(ax, results.val_accuracy_history, theme_color("accent"), label="validation"):
+        if results.best_epoch is not None:
+            ax.axvline(results.best_epoch, color=theme_color("muted"), linestyle=":", label="best epoch")
+        ax.legend()
     ax.set_xlabel("Epoch")
     ax.set_ylabel(label)
     title = f"{results.name} — {label}"
@@ -74,12 +83,16 @@ def plot_accuracy_comparison(
 
     label = accuracy_axis_label(results_list)
     fig, ax = plt.subplots()
+    has_validation = False
     for results, color in zip(results_list, line_colors(len(results_list))):
         epochs = range(1, len(results.accuracy_history) + 1)
         ax.plot(epochs, results.accuracy_history, label=results.name, color=color)
+        has_validation = plot_validation(ax, results.val_accuracy_history, color) or has_validation
     ax.set_xlabel("Epoch")
     ax.set_ylabel(label)
     title = f"{label} Comparison"
+    if has_validation:
+        title += VALIDATION_TITLE_NOTE
     if log_scale:
         ax.set_yscale("log")
         title += " (log scale)"

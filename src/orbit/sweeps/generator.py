@@ -13,7 +13,9 @@ def _normalize_config(config: dict) -> dict:
     - optimizer options that belong to a different optimizer (e.g.
       "momentum" once the optimizer is Adam - load_experiment would raise);
     - "normalize": "none", which means the same as the key being absent;
-    - "grad_clip": 0, likewise (no clipping).
+    - "grad_clip": 0, likewise (no clipping);
+    - "validation_split": 0 (no validation set), and "patience" without a
+      validation set - early stopping has nothing to watch then.
     """
     allowed = OPTIMIZER_OPTIONS.get(config.get("optimizer"), ())
     for option in ALL_OPTIMIZER_OPTIONS:
@@ -23,6 +25,10 @@ def _normalize_config(config: dict) -> dict:
         config.pop("normalize")
     if config.get("grad_clip") == 0:
         config.pop("grad_clip")
+    if config.get("validation_split") == 0:
+        config.pop("validation_split")
+    if not config.get("validation_split"):
+        config.pop("patience", None)
     return config
 
 

@@ -79,9 +79,25 @@ def _report_training(results, show_test_metrics: bool = True) -> None:
         )
         return
     success(f"Final loss: {results.final_loss}")
+    _report_early_stopping(results)
     if show_test_metrics:
         _report_test_metrics(results)
     _warn_if_stalled(results)
+
+
+def _report_early_stopping(results) -> None:
+    best = getattr(results, "best_epoch", None)
+    if best is None:
+        return
+    val_loss = results.val_loss_history[best - 1]
+    stopped = getattr(results, "stopped_early_at_epoch", None)
+    if stopped is not None:
+        success(
+            f"Stopped early at epoch {stopped}: validation loss hadn't improved since epoch {best} "
+            f"({val_loss:.4g}) - the model keeps epoch {best}'s weights."
+        )
+    else:
+        success(f"Best validation loss {val_loss:.4g} at epoch {best} - the model keeps that epoch's weights.")
 
 
 def _report_test_metrics(results) -> None:

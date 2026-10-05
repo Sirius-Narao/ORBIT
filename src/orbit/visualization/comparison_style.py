@@ -71,3 +71,22 @@ def use_horizontal_bars(n: int) -> bool:
 def bar_figure_height(n: int) -> float:
     """Inches: matplotlib's default 4.8 until the bars need more room."""
     return max(4.8, BAR_HEIGHT_INCHES * n + 1.5)
+
+
+# Validation curves ("validation_split") are drawn dashed in the same color as
+# their training curve, so each pair reads as one experiment.
+VALIDATION_LINESTYLE = "--"
+VALIDATION_TITLE_NOTE = " (dashed: validation)"
+
+
+def plot_validation(ax, values, color, label: str = "_nolegend_") -> bool:
+    """
+    Draw a validation history as a dashed line; returns whether one was
+    drawn. The default label keeps it out of comparison legends, which
+    name experiments - the title notes what dashed means instead.
+    """
+    if not values:
+        return False
+    ax.plot(range(1, len(values) + 1), values, color=color, linestyle=VALIDATION_LINESTYLE, label=label)
+    return True
+

@@ -649,3 +649,66 @@ def test_grad_clip_keeps_an_otherwise_diverging_run_bounded():
     assert unclipped.diverged_at_epoch is not None
     assert clipped.diverged_at_epoch is None
     assert max(clipped.history) < 20
+
+
+# --- validation and early stopping ----------------------------------------------
+
+def _early_stopping_setup():
+    np.random.seed(0)
+    model = Linear(1, 1)
+    data = TensorDataset(np.array([[1.0], [2.0]]), np.array([[2.0], [4.0]]))
+    return model, DataLoader(data, batch_size=2, shuffle=False)
+
+
+def test_validation_loss_is_recorded_every_epoch_without_changing_training():
+    # Same seed and data with and without a validation set: identical
+    # training, plus one validation loss per epoch.
+    model, loader = _early_stopping_setup()
+    plain = Trainer()
+    plain.fit(model, MSE(), SGD(model.parameters(), lr=0.01), loader, epochs=5)
+
+    model, loader = _early_stopping_setup()
+    validated = Trainer()
+    validated.fit(model, MSE(), SGD(model.parameters(), lr=0.01), loader, epochs=5, val_dataloader=loader)
+
+    assert validated.history == plain.history
+    assert len(validated.val_loss_history) == 5
+    # Validating on the training rows: each validation loss is the loss
+    # after that epoch's update, i.e. the next epoch's training loss.
+    assert np.allclose(validated.val_loss_history[:-1], validated.history[1:])
+    assert validated.stopped_early_at_epoch is None
+
+
+def test_early_stopping_stops_after_patience_epochs_and_restores_the_best_weights(monkeypatch):
+    """
+    Scripted validation losses 3, 2, 1, 2, 3, 4: the best is epoch 3. With
+    patience 2, epochs 4 and 5 fail to beat it, so training stops at epoch
+    5 (3 + 2) - epoch 6 never runs - and the model ends with the weights it
+    had after epoch 3, not epoch 5's.
+    """
+    model, loader = _early_stopping_setup()
+    trainer = Trainer()
+    scripted = iter([3.0, 2.0, 1.0, 2.0, 3.0, 4.0])
+    monkeypatch.setattr(trainer, "_evaluate_pass", lambda *a, **k: (next(scripted), None))
+    weights_after = {}
+
+    def remember(epoch, model, loss):
+        weights_after[epoch] = model.weight.data.copy()
+
+    trainer.fit(
+        model, MSE(), SGD(model.parameters(), lr=0.01), loader, epochs=10,
+        val_dataloader=loader, patience=2, on_epoch_end=remember,
+    )
+
+    assert trainer.best_epoch == 3
+    assert trainer.stopped_early_at_epoch == 5
+    assert len(trainer.history) == 5
+    assert np.array_equal(model.weight.data, weights_after[3])
+    assert not np.array_equal(weights_after[3], weights_after[5])
+
+
+def test_patience_without_a_validation_set_is_rejected():
+    model, loader = _early_stopping_setup()
+
+    with np.testing.assert_raises(ValueError):
+        Trainer().fit(model, MSE(), SGD(model.parameters(), lr=0.01), loader, epochs=1, patience=3)

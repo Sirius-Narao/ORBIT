@@ -711,3 +711,61 @@ def test_blobs_trains_end_to_end_with_cross_entropy():
     # near-perfect test accuracy (with the old (N, 1) broadcasting bug it
     # could not).
     assert results.test_accuracy >= 0.9
+
+
+# --- validation split / early stopping -----------------------------------------
+
+def _moons_config(**extra):
+    config = {
+        "name": "m", "dataset": "moons",
+        "model": [{"type": "Linear", "in_features": 2, "neurons": 1}, {"type": "Sigmoid"}],
+        "loss": "MSE", "optimizer": "SGD", "learning_rate": 0.1, "epochs": 1, "seed": 0,
+    }
+    config.update(extra)
+    return config
+
+
+def test_validation_split_is_a_fraction_of_the_whole_dataset():
+    # moons has 200 rows: 0.2 test -> 40, 0.2 validation -> 40, 120 train.
+    experiment = load_experiment(_moons_config(test_split=0.2, validation_split=0.2))
+
+    assert len(experiment.test_dataloader.dataset) == 40
+    assert len(experiment.val_dataloader.dataset) == 40
+    assert len(experiment.dataloader.dataset) == 120
+
+
+def test_validation_split_without_a_test_split():
+    experiment = load_experiment(_moons_config(validation_split=0.25, patience=5))
+
+    assert len(experiment.val_dataloader.dataset) == 50
+    assert experiment.test_dataloader is None
+    assert experiment.patience == 5
+
+
+def test_no_validation_split_leaves_the_seeded_split_unchanged():
+    # Without validation_split nothing extra is drawn from the RNG, so the
+    # test rows are exactly those of a config written before it existed.
+    with_val = load_experiment(_moons_config(test_split=0.2))
+    again = load_experiment(_moons_config(test_split=0.2))
+
+    assert with_val.val_dataloader is None
+    assert list(with_val.test_dataloader.dataset.indices) == list(again.test_dataloader.dataset.indices)
+
+
+@pytest.mark.parametrize("extra, message", [
+    ({"patience": 5}, "needs a validation_split"),
+    ({"validation_split": 0}, "between 0 and 1"),
+    ({"validation_split": 1.5}, "between 0 and 1"),
+    ({"validation_split": 0.2, "patience": 0}, "whole number"),
+    ({"validation_split": 0.2, "patience": 2.5}, "whole number"),
+    ({"validation_split": 0.5, "test_split": 0.5}, "leave some rows"),
+])
+def test_invalid_early_stopping_settings_are_rejected(extra, message):
+    with pytest.raises(ValueError, match=message):
+        load_experiment(_moons_config(**extra))
+
+
+def test_validation_stats_reuse_the_training_normalization():
+    experiment = load_experiment(_moons_config(validation_split=0.2, normalize="standard"))
+
+    assert experiment.val_dataloader.dataset.stats is experiment.dataloader.dataset.stats

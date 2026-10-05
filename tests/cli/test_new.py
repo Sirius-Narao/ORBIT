@@ -3,17 +3,20 @@ import questionary
 from orbit.cli.commands.new import create_experiment
 
 
+from orbit.cli.commands.new import PATIENCE_PROMPT, VALIDATION_SPLIT_PROMPT
+
 GRAD_CLIP_PROMPT = "Gradient clipping (max norm, blank = off):"
 
 
-def fake_prompts(monkeypatch, *, texts, selects, grad_clip=""):
+def fake_prompts(monkeypatch, *, texts, selects, grad_clip="", validation_split="", patience=""):
     """
     questionary.text(...)/.select(...) return prompt objects with a .ask()
     method. Stub both factories to hand back canned answers in call order,
     so create_experiment() runs the same as if a person had used arrow
     keys + enter to pick each one. The gradient-clipping prompt is answered
     separately (grad_clip, blank = off by default), so the positional texts
-    lists don't all have to account for it.
+    lists don't all have to account for it - and so are the validation split
+    and early stopping prompts.
     """
     texts = iter(texts)
     selects = iter(selects)
@@ -25,9 +28,14 @@ def fake_prompts(monkeypatch, *, texts, selects, grad_clip=""):
         def ask(self):
             return self.value
 
+    by_message = {
+        GRAD_CLIP_PROMPT: grad_clip,
+        VALIDATION_SPLIT_PROMPT: validation_split,
+        PATIENCE_PROMPT: patience,
+    }
     monkeypatch.setattr(
         questionary, "text",
-        lambda message, *a, **k: FakeAnswer(grad_clip if message == GRAD_CLIP_PROMPT else next(texts)),
+        lambda message, *a, **k: FakeAnswer(by_message[message] if message in by_message else next(texts)),
     )
     monkeypatch.setattr(questionary, "select", lambda *a, **k: FakeAnswer(next(selects)))
 

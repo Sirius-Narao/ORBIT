@@ -1,5 +1,9 @@
 from typing import Dict, List, Optional
 
+
+def _floats(values: Optional[List[float]]) -> Optional[List[float]]:
+    return [float(v) for v in values] if values is not None else None
+
 class Results:
     def __init__(
         self,
@@ -14,6 +18,10 @@ class Results:
         test_accuracy: Optional[float] = None,
         layer_gradient_norm_history: Optional[Dict[str, List[float]]] = None,
         diverged_at_epoch: Optional[int] = None,
+        val_loss_history: Optional[List[float]] = None,
+        val_accuracy_history: Optional[List[float]] = None,
+        best_epoch: Optional[int] = None,
+        stopped_early_at_epoch: Optional[int] = None,
     ):
         self.name = name
         self.final_loss = final_loss
@@ -33,6 +41,16 @@ class Results:
         # stopped; None for a run that finished normally (or an old result).
         # When set, final_loss is NaN and the histories end just before it.
         self.diverged_at_epoch = diverged_at_epoch
+        # Per-epoch loss/accuracy on the validation set ("validation_split");
+        # None without one (or for an old result).
+        self.val_loss_history = val_loss_history
+        self.val_accuracy_history = val_accuracy_history
+        # Early stopping ("patience"): the epoch with the lowest validation
+        # loss, whose weights the trained model ends with, and the epoch
+        # training stopped at (None if it ran all its epochs). loss_history
+        # still covers every epoch trained, up to the stop.
+        self.best_epoch = best_epoch
+        self.stopped_early_at_epoch = stopped_early_at_epoch
 
     def __repr__(self):
         return f"Results(name={self.name!r}, final_loss={self.final_loss:.4f}, epochs={len(self.loss_history)})"
@@ -68,6 +86,12 @@ class Results:
                 else None
             ),
             "diverged_at_epoch": int(self.diverged_at_epoch) if self.diverged_at_epoch is not None else None,
+            "val_loss_history": _floats(self.val_loss_history),
+            "val_accuracy_history": _floats(self.val_accuracy_history),
+            "best_epoch": int(self.best_epoch) if self.best_epoch is not None else None,
+            "stopped_early_at_epoch": (
+                int(self.stopped_early_at_epoch) if self.stopped_early_at_epoch is not None else None
+            ),
         }
 
     @classmethod

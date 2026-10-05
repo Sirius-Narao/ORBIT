@@ -22,6 +22,8 @@ class Experiment:
         task: Optional[str] = None,
         accuracy_tolerance: Optional[float] = None,
         grad_clip: Optional[float] = None,
+        val_dataloader: Optional[DataLoader] = None,
+        patience: Optional[int] = None,
     ):
         self.model = model
         self.loss_fn = loss_fn
@@ -36,6 +38,8 @@ class Experiment:
         self.task = task
         self.accuracy_tolerance = accuracy_tolerance
         self.grad_clip = grad_clip
+        self.val_dataloader = val_dataloader
+        self.patience = patience
 
         self.trainer = Trainer()
         # Weight snapshots from the last run() (a SnapshotRecorder), or None
@@ -81,6 +85,8 @@ class Experiment:
             accuracy_fn=self.accuracy_fn,
             on_epoch_end=after_epoch if callbacks else None,
             grad_clip=self.grad_clip,
+            val_dataloader=self.val_dataloader,
+            patience=self.patience,
         )
 
         # A diverged model's test loss would just be NaN too - leave the test
@@ -102,6 +108,8 @@ class Experiment:
             hyperparams["accuracy_tolerance"] = self.accuracy_tolerance
         if self.grad_clip:
             hyperparams["grad_clip"] = self.grad_clip
+        if self.patience:
+            hyperparams["patience"] = self.patience
 
         return Results(
             final_loss = final_loss,
@@ -115,4 +123,8 @@ class Experiment:
             test_accuracy = test_accuracy,
             layer_gradient_norm_history = self.trainer.layer_gradient_norm_history,
             diverged_at_epoch = self.trainer.diverged_at_epoch,
+            val_loss_history = self.trainer.val_loss_history,
+            val_accuracy_history = self.trainer.val_accuracy_history,
+            best_epoch = self.trainer.best_epoch,
+            stopped_early_at_epoch = self.trainer.stopped_early_at_epoch,
             )

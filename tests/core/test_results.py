@@ -281,3 +281,25 @@ def test_results_from_dict_without_diverged_at_epoch_defaults_to_none():
     del data["diverged_at_epoch"]
 
     assert Results.from_dict(data).diverged_at_epoch is None
+
+
+def test_results_round_trip_validation_and_early_stopping_fields():
+    results = Results(
+        name="r", final_loss=0.1, loss_history=[0.3, 0.2, 0.1],
+        val_loss_history=[0.35, 0.25, 0.3], val_accuracy_history=[0.5, 0.75, 0.7],
+        best_epoch=2, stopped_early_at_epoch=3,
+    )
+
+    restored = Results.from_dict(results.to_dict())
+
+    assert restored.val_loss_history == [0.35, 0.25, 0.3]
+    assert restored.val_accuracy_history == [0.5, 0.75, 0.7]
+    assert (restored.best_epoch, restored.stopped_early_at_epoch) == (2, 3)
+
+
+def test_old_results_without_validation_fields_load_as_none():
+    restored = Results.from_dict({"name": "old", "final_loss": 0.1, "loss_history": [0.1]})
+
+    assert restored.val_loss_history is None
+    assert restored.best_epoch is None
+    assert restored.stopped_early_at_epoch is None

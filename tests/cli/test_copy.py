@@ -1,3 +1,4 @@
+from orbit.cli.commands.new import PATIENCE_PROMPT, VALIDATION_SPLIT_PROMPT
 import json
 import questionary
 
@@ -7,7 +8,7 @@ from orbit.cli.commands.copy import copy_experiment
 GRAD_CLIP_PROMPT = "Gradient clipping (max norm, blank = off):"
 
 
-def fake_prompts(monkeypatch, texts, selects=None, grad_clip=None):
+def fake_prompts(monkeypatch, texts, selects=None, grad_clip=None, early_stopping=None):
     """
     selects maps a select prompt's message to the answer to pick; any
     select prompt not in it stands in for the user accepting the pre-filled
@@ -25,9 +26,14 @@ def fake_prompts(monkeypatch, texts, selects=None, grad_clip=None):
         def ask(self):
             return self.value
 
+    early_stopping = early_stopping or {}
+
     def text(message, *a, **k):
         if message == GRAD_CLIP_PROMPT:
             return FakeAnswer(grad_clip if grad_clip is not None else k.get("default", ""))
+        if message in (VALIDATION_SPLIT_PROMPT, PATIENCE_PROMPT):
+            # Accept the pre-filled (source's) value unless told otherwise.
+            return FakeAnswer(early_stopping.get(message, k.get("default", "")))
         return FakeAnswer(next(texts))
 
     monkeypatch.setattr(questionary, "text", text)
@@ -298,7 +304,7 @@ def test_copy_experiment_momentum_defaults_to_the_source_momentum(tmp_path, monk
             self.value = value
         def ask(self):
             return self.value
-    texts = iter(["copied_exp", "0.9", "2.0", "", "4", "300", "", "1"])  # "" = grad clip off
+    texts = iter(["copied_exp", "0.9", "2.0", "", "4", "300", "", "", "1"])  # grad clip off, no test/validation split
     def fake_text(message, *a, **k):
         defaults.append((message, k.get("default")))
         return FakeAnswer(next(texts))
@@ -375,7 +381,7 @@ def test_copy_experiment_prefills_and_keeps_the_source_grad_clip(tmp_path, monke
         def ask(self):
             return self.value
 
-    texts = iter(["copied_exp", "0", "2.0", "4", "300", "", "1"])
+    texts = iter(["copied_exp", "0", "2.0", "4", "300", "", "", "1"])  # ..., test split, validation split, seed
 
     def fake_text(message, *a, **k):
         if message == GRAD_CLIP_PROMPT:

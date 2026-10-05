@@ -98,6 +98,18 @@ class Trainer:
         # The last batch's clipping scale, so _record_epoch can report the
         # gradient as it was *before* clipping.
         self._last_clip_scale = 1.0
+        # Validation (see fit's val_dataloader/patience): per-epoch loss and
+        # accuracy on the validation set, None when there is none.
+        self.val_loss_history = None
+        self.val_accuracy_history = None
+        # Early stopping: the epoch with the lowest validation loss (whose
+        # weights the model ends with) and the epoch training stopped at.
+        self.best_epoch = None
+        self.stopped_early_at_epoch = None
+        self._val_dataloader = None
+        self._patience = None
+        self._best_val_loss = None
+        self._best_weights = None
 
     def _run_epoch(
         self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, accuracy_fn=None
@@ -178,7 +190,14 @@ class Trainer:
         """
         if is_tty():
             return self._evaluate_with_progress_bar(model, loss_fn, dataloader, accuracy_fn=accuracy_fn)
+        return self._evaluate_pass(model, loss_fn, dataloader, accuracy_fn)
 
+    def _evaluate_pass(self, model: Module, loss_fn: Loss, dataloader: DataLoader, accuracy_fn=None,
+                       on_batch=None):
+        """
+        The loop behind evaluate() and the per-epoch validation pass.
+        on_batch(running_loss) is called after every batch (the progress bar).
+        """
         model.eval()
         total_loss = 0.0
         total_samples = 0
@@ -192,6 +211,8 @@ class Trainer:
             if accuracy_fn is not None:
                 predictions.append(y_pred.data)
                 targets.append(Y_batch.data)
+            if on_batch is not None:
+                on_batch(total_loss / total_samples)
         model.train()
 
         avg_loss = total_loss / total_samples
@@ -201,10 +222,6 @@ class Trainer:
     def _evaluate_with_progress_bar(
         self, model: Module, loss_fn: Loss, dataloader: DataLoader, accuracy_fn=None
     ):
-        model.eval()
-        total_loss = 0.0
-        total_samples = 0
-        predictions, targets = [], []
         console.print()
         with Progress(
             TextColumn("[bold #ffeab0]Evaluating[/bold #ffeab0]"),
@@ -217,29 +234,62 @@ class Trainer:
             console=console,
         ) as progress:
             task = progress.add_task("evaluate", total=len(dataloader), loss=float("nan"))
-            for X_batch, Y_batch in dataloader:
-                y_pred = model(X_batch)
-                loss = loss_fn(y_pred, Y_batch)
-                batch_size = X_batch.shape[0]
-                total_loss += loss.data * batch_size
-                total_samples += batch_size
-                if accuracy_fn is not None:
-                    predictions.append(y_pred.data)
-                    targets.append(Y_batch.data)
-                progress.update(task, advance=1, loss=total_loss / total_samples)
+            result = self._evaluate_pass(
+                model, loss_fn, dataloader, accuracy_fn,
+                on_batch=lambda loss: progress.update(task, advance=1, loss=loss),
+            )
         console.print()
-        model.train()
+        return result
 
-        avg_loss = total_loss / total_samples
-        avg_accuracy = _whole_pass_metric(accuracy_fn, predictions, targets)
-        return avg_loss, avg_accuracy
+    def _validate(self, model: Module, loss_fn: Loss, accuracy_fn, epoch: int) -> bool:
+        """
+        Measure the epoch's model on the validation set and, with patience,
+        apply early stopping. Returns True when training should stop.
+
+        Early stopping: training loss keeps falling as a model starts to
+        memorize its training rows, but the loss on rows it never trains on
+        (the validation set) stops improving, then rises - the model is
+        overfitting. So keep a copy of the weights from the epoch with the
+        lowest validation loss so far, and stop once `patience` epochs in a
+        row have failed to beat it; fit() then puts those best weights back.
+        """
+        val_loss, val_accuracy = self._evaluate_pass(model, loss_fn, self._val_dataloader, accuracy_fn)
+        self.val_loss_history.append(val_loss)
+        if val_accuracy is not None:
+            self.val_accuracy_history.append(val_accuracy)
+
+        if not self._patience:
+            return False
+        if self._best_val_loss is None or val_loss < self._best_val_loss:
+            self._best_val_loss = val_loss
+            self.best_epoch = epoch
+            self._best_weights = [param.data.copy() for param in model.parameters()]
+            return False
+        if epoch - self.best_epoch >= self._patience:
+            self.stopped_early_at_epoch = epoch
+            return True
+        return False
+
+    def _end_of_epoch(self, model: Module, loss_fn: Loss, accuracy_fn, epoch: int, avg_loss,
+                      on_epoch_end) -> bool:
+        """Validation and the on_epoch_end callback, shared by both fit paths. True = stop."""
+        stop = self._validate(model, loss_fn, accuracy_fn, epoch) if self._val_dataloader is not None else False
+        if on_epoch_end is not None:
+            on_epoch_end(epoch, model, avg_loss)
+        return stop
 
     def fit(self, model: Module, loss_fn: Loss, optimizer: Optimizer, dataloader: DataLoader, epochs: int,
             verbose: bool = False, log_every: int = 100, accuracy_fn=None, on_epoch_end=None,
-            grad_clip=None):
+            grad_clip=None, val_dataloader: DataLoader = None, patience: int = None):
         """
         grad_clip: optional max global gradient norm per batch (see
         _clip_gradients); None or 0 trains without clipping.
+
+        val_dataloader: optional validation set, measured after every epoch
+        into val_loss_history/val_accuracy_history. patience (needs a
+        val_dataloader): stop once the validation loss hasn't improved for
+        that many epochs, and end with the best epoch's weights (see
+        _validate). Without them, training is exactly as before.
 
         on_epoch_end: optional callable(epoch, model, avg_loss), called after
         every epoch (epochs count from 1) - how weight snapshots and the live
@@ -250,10 +300,21 @@ class Trainer:
         the epochs before it (see _run_epoch).
         """
 
+        if patience and val_dataloader is None:
+            raise ValueError("Early stopping (patience) needs a validation set (val_dataloader)")
+
         start = time.time()
         self.grad_clip = grad_clip
+        self._val_dataloader = val_dataloader
+        self._patience = patience
+        self.best_epoch = self.stopped_early_at_epoch = None
+        self._best_val_loss = self._best_weights = None
         if accuracy_fn is not None:
             self.accuracy_history = []
+        if val_dataloader is not None:
+            self.val_loss_history = []
+            if accuracy_fn is not None:
+                self.val_accuracy_history = []
 
         # Overflow/invalid-value warnings are what a diverging run produces
         # on its way to inf/NaN. _run_epoch detects that and stops training,
@@ -270,6 +331,10 @@ class Trainer:
                     model, loss_fn, optimizer, dataloader, epochs, verbose, log_every,
                     accuracy_fn=accuracy_fn, on_epoch_end=on_epoch_end,
                 )
+
+        if self._best_weights is not None:
+            for param, best in zip(model.parameters(), self._best_weights):
+                param.data = best
 
         self.duration_seconds = time.time() - start
         return float("nan") if self.diverged_at_epoch is not None else avg_loss
@@ -291,8 +356,8 @@ class Trainer:
                 print(f"{e} | {avg_loss}")
 
             self._record_epoch(model, avg_loss, grad_norm, avg_accuracy)
-            if on_epoch_end is not None:
-                on_epoch_end(e, model, avg_loss)
+            if self._end_of_epoch(model, loss_fn, accuracy_fn, e, avg_loss, on_epoch_end):
+                break
 
         return avg_loss
 
@@ -321,9 +386,10 @@ class Trainer:
                     self.diverged_at_epoch = e
                     break
                 self._record_epoch(model, avg_loss, grad_norm, avg_accuracy)
-                if on_epoch_end is not None:
-                    on_epoch_end(e, model, avg_loss)
+                stop = self._end_of_epoch(model, loss_fn, accuracy_fn, e, avg_loss, on_epoch_end)
                 progress.update(task, advance=1, loss=avg_loss)
+                if stop:
+                    break
         console.print()
 
         return avg_loss
