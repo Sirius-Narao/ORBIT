@@ -16,6 +16,7 @@ import numpy as np
 
 from orbit.nn.introspection import LayerInfo
 from orbit.visualization.network import column_label
+from orbit.visualization.theme import theme_color, themed
 
 TANH_SATURATION = 0.97       # |tanh| above this: gradient 1 - a^2 < ~0.06
 SIGMOID_SATURATION = 0.03    # sigmoid below this or above 1 - this: gradient a(1 - a) < ~0.03
@@ -71,6 +72,7 @@ def hidden_layer_health(structure: List[LayerInfo], trace: Sequence[np.ndarray])
     ]
 
 
+@themed
 def plot_activation_health(health: List[LayerHealth], trace: Sequence[np.ndarray], title: str,
                            output_path: pathlib.Path) -> pathlib.Path:
     """One histogram per hidden layer, with saturated zones shaded and the stats in each subplot's title."""
@@ -93,14 +95,14 @@ def plot_activation_health(health: List[LayerHealth], trace: Sequence[np.ndarray
         ax = axes[index // columns][index % columns]
         values = trace[index + 1].ravel()
         unhealthy = bool(layer.problems)
-        ax.hist(values, bins=40, color="#ffb0b0" if unhealthy else "#b0ffb3", edgecolor="#555555", linewidth=0.4)
+        ax.hist(values, bins=40, color=theme_color("unhealthy") if unhealthy else theme_color("accent"), edgecolor=theme_color("surface"), linewidth=0.4)
 
         if layer.activation == "Tanh":
-            ax.axvspan(-1, -TANH_SATURATION, color="#d6b0ff", alpha=0.4)
-            ax.axvspan(TANH_SATURATION, 1, color="#d6b0ff", alpha=0.4)
+            ax.axvspan(-1, -TANH_SATURATION, color=theme_color("zone"), alpha=0.4)
+            ax.axvspan(TANH_SATURATION, 1, color=theme_color("zone"), alpha=0.4)
         elif layer.activation == "Sigmoid":
-            ax.axvspan(0, SIGMOID_SATURATION, color="#d6b0ff", alpha=0.4)
-            ax.axvspan(1 - SIGMOID_SATURATION, 1, color="#d6b0ff", alpha=0.4)
+            ax.axvspan(0, SIGMOID_SATURATION, color=theme_color("zone"), alpha=0.4)
+            ax.axvspan(1 - SIGMOID_SATURATION, 1, color=theme_color("zone"), alpha=0.4)
 
         details = [f"mean {layer.mean:.3g}, std {layer.std:.3g}"]
         if layer.dead_fraction is not None:

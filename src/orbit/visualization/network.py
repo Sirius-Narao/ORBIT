@@ -18,6 +18,7 @@ import numpy as np
 
 from orbit.nn.introspection import LayerInfo, column_sizes
 from orbit.visualization.backend import can_show, pyplot
+from orbit.visualization.theme import theme_color, themed
 
 # A column wider than this shows its first and last few nodes plus a
 # "⋮ +k" marker - otherwise e.g. a 784-pixel input column would be an
@@ -181,7 +182,7 @@ def draw_network(
         for node, (x, y) in positions.items():
             fill = activation_cmap(normalized[node])
             if bias is None:
-                outline = "#888888"
+                outline = theme_color("muted")
             else:
                 outline = weight_cmap(0.5 + 0.5 * np.clip(bias[node] / bias_scale, -1.0, 1.0))
             ax.add_patch(Circle((x, y), NODE_RADIUS, facecolor=fill, edgecolor=outline, linewidth=2.0, zorder=2))
@@ -191,7 +192,7 @@ def draw_network(
 
         if marker is not None:
             hidden = sizes[column] - len(positions)
-            ax.text(marker[0], marker[1], f"⋮\n+{hidden}", ha="center", va="center", fontsize=9, color="#555555")
+            ax.text(marker[0], marker[1], f"⋮\n+{hidden}", ha="center", va="center", fontsize=9, color=theme_color("muted"))
 
     # --- framing -------------------------------------------------------
     tallest = max(len(p) + (1 if m else 0) for p, m in layout)
@@ -243,6 +244,7 @@ def add_network_colorbars(fig, ax, caxes=None) -> None:
     weight_bar.ax.set_title("Link: weight · outline: bias", fontsize=8)
 
 
+@themed
 def plot_network(
     structure: List[LayerInfo],
     weights: Sequence[Tuple[np.ndarray, np.ndarray]],

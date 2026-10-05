@@ -3,8 +3,10 @@ from typing import List
 
 from orbit.core import Results
 from orbit.visualization.comparison_style import add_legend, line_colors
+from orbit.visualization.theme import theme_color, themed
 
 
+@themed
 def plot_gradient_norm(results: Results, output_path: pathlib.Path, log_scale: bool = False) -> pathlib.Path:
     """
     Render results.gradient_norm_history as a line plot and save it to
@@ -23,7 +25,7 @@ def plot_gradient_norm(results: Results, output_path: pathlib.Path, log_scale: b
 
     fig, ax = plt.subplots()
     epochs = range(1, len(results.gradient_norm_history) + 1)
-    ax.plot(epochs, results.gradient_norm_history, color="#b0ffb3")
+    ax.plot(epochs, results.gradient_norm_history, color=theme_color("accent"))
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Gradient Norm")
     title = f"{results.name} — Gradient Norm"
@@ -38,6 +40,7 @@ def plot_gradient_norm(results: Results, output_path: pathlib.Path, log_scale: b
     return output_path
 
 
+@themed
 def plot_gradient_norm_comparison(
     results_list: List[Results], output_path: pathlib.Path, log_scale: bool = False
 ) -> pathlib.Path:
@@ -77,6 +80,7 @@ def plot_gradient_norm_comparison(
     return output_path
 
 
+@themed
 def plot_layer_gradient_norms(results: Results, output_path: pathlib.Path, log_scale: bool = False) -> pathlib.Path:
     """
     One line per weight matrix's gradient norm (results.layer_gradient_norm_history),

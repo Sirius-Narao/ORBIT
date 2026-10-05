@@ -3,8 +3,10 @@ from typing import List
 
 from orbit.core import Results
 from orbit.visualization.comparison_style import add_legend, line_colors
+from orbit.visualization.theme import theme_color, themed
 
 
+@themed
 def plot_loss(results: Results, output_path: pathlib.Path, log_scale: bool = False) -> pathlib.Path:
     """
     Render results.loss_history as a line plot and save it to output_path.
@@ -33,7 +35,7 @@ def plot_loss(results: Results, output_path: pathlib.Path, log_scale: bool = Fal
 
     fig, ax = plt.subplots()
     epochs = range(1, len(results.loss_history) + 1)
-    ax.plot(epochs, results.loss_history, color="#b0ffb3")
+    ax.plot(epochs, results.loss_history, color=theme_color("accent"))
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
     title = f"{results.name} — Training Loss"
@@ -48,6 +50,7 @@ def plot_loss(results: Results, output_path: pathlib.Path, log_scale: bool = Fal
     return output_path
 
 
+@themed
 def plot_loss_comparison(
     results_list: List[Results], output_path: pathlib.Path, log_scale: bool = False
 ) -> pathlib.Path:

@@ -15,6 +15,7 @@ from typing import List, Optional, Sequence, Tuple
 import numpy as np
 
 from orbit.visualization.backend import pyplot
+from orbit.visualization.theme import theme_color, themed
 
 GRID_RESOLUTION = 200
 GRID_MARGIN = 0.15
@@ -90,7 +91,7 @@ def draw_boundary(ax, xx, yy, predictions: np.ndarray, data: BoundaryData,
         surface = predictions[:, 0].reshape(shape)
         filled = ax.contourf(xx, yy, surface, levels=np.linspace(0, 1, 21), cmap=cmap, norm=norm, alpha=0.75, extend="both")
         if surface.min() < 0.5 < surface.max():
-            ax.contour(xx, yy, surface, levels=[0.5], colors="black", linewidths=1.5)
+            ax.contour(xx, yy, surface, levels=[0.5], colors=theme_color("edge"), linewidths=1.5)
         train_colors = data.Y_train[:, 0]
         test_colors = data.Y_test[:, 0] if data.X_test is not None else None
     else:
@@ -103,7 +104,7 @@ def draw_boundary(ax, xx, yy, predictions: np.ndarray, data: BoundaryData,
         test_colors = data.Y_test[:, 0] if data.X_test is not None else None
 
     ax.scatter(data.X_train[:, 0], data.X_train[:, 1], c=train_colors, cmap=cmap, norm=norm,
-               edgecolors="black", linewidths=1.0, s=70, zorder=3, label="train")
+               edgecolors=theme_color("edge"), linewidths=1.0, s=70, zorder=3, label="train")
     if data.X_test is not None:
         ax.scatter(data.X_test[:, 0], data.X_test[:, 1], facecolors="none",
                    edgecolors=cmap(norm(test_colors)), linewidths=2.0, s=80, zorder=3, label="test")
@@ -128,6 +129,7 @@ def _colorbar(fig, ax, filled, data: BoundaryData, n_outputs: int):
         bar.set_label("Predicted value")
 
 
+@themed
 def plot_boundary(xx, yy, predictions: np.ndarray, data: BoundaryData, title: str,
                   output_path: pathlib.Path, show: bool = False) -> pathlib.Path:
     from orbit.visualization.backend import can_show
@@ -148,6 +150,7 @@ def plot_boundary(xx, yy, predictions: np.ndarray, data: BoundaryData, title: st
     return output_path
 
 
+@themed
 def animate_boundary(xx, yy, frames: List[Tuple[int, np.ndarray]], data: BoundaryData, title: str,
                      output_path: pathlib.Path, value_range: Optional[Tuple[float, float]] = None,
                      video_format: str = "gif", fps: int = 10, show: bool = False) -> pathlib.Path:

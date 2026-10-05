@@ -32,7 +32,9 @@ from orbit.cli.commands.sweep import (
 )
 from orbit.core.ranking import RANK_METRICS
 from orbit.core.metrics import format_metric, metric_label
+from orbit.settings import THEMES, load_settings
 from orbit.ui import console, error, success, warning
+from orbit.visualization.theme import set_theme_override
 
 # Below this relative improvement between the first and last epoch's loss,
 # a run is flagged as stalled rather than just slow - it's a generic signal
@@ -110,6 +112,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="orbit")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    # Shared by every command that renders a plot or animation.
+    theme_parent = argparse.ArgumentParser(add_help=False)
+    theme_parent.add_argument(
+        "--theme", choices=THEMES, help="Plot theme for this command (default: display.theme in the settings)"
+    )
+
     # Init command
     init_parser = subparsers.add_parser(
         "init", help="Create the ORBIT workspace (.orbits/) and the settings file pointing to it"
@@ -164,7 +172,7 @@ def build_parser() -> argparse.ArgumentParser:
     delete_parser.add_argument("--all", action="store_true", help="Delete every experiment")
 
     # Compare command
-    compare_parser = subparsers.add_parser("compare", help="Compare experiments by config and results")
+    compare_parser = subparsers.add_parser("compare", help="Compare experiments by config and results", parents=[theme_parent])
     compare_parser.add_argument("names", nargs="*", help="Names of experiments to compare (omit with --all)")
     compare_parser.add_argument("--all", action="store_true", help="Compare every experiment")
     compare_parser.add_argument("--plotloss", action="store_true", help="Also save a comparison plot of loss curves")
@@ -193,7 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
     rename_parser.add_argument("new_name", help="New name for the experiment")
 
     # Plotloss command
-    plotloss_parser = subparsers.add_parser("plotloss", help="Plot an experiment's recorded loss curve")
+    plotloss_parser = subparsers.add_parser("plotloss", help="Plot an experiment's recorded loss curve", parents=[theme_parent])
     plotloss_parser.add_argument("name", help="Name of the experiment to plot")
     plotloss_parser.add_argument(
         "--logscale", action="store_true",
@@ -201,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # Plot command (interactive multi-metric)
-    plot_parser = subparsers.add_parser("plot", help="Interactively plot one or more experiments' metrics")
+    plot_parser = subparsers.add_parser("plot", help="Interactively plot one or more experiments' metrics", parents=[theme_parent])
     plot_parser.add_argument("names", nargs="*", help="Names of experiments to plot (omit with --all)")
     plot_parser.add_argument("--all", action="store_true", help="Plot every experiment")
     plot_parser.add_argument(
@@ -216,52 +224,48 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Network command (diagram of the model itself)
     network_parser = subparsers.add_parser(
-        "network", help="Draw an experiment's network: nodes, weights and activations"
+        "network", help="Draw an experiment's network: nodes, weights and activations", parents=[theme_parent]
     )
     network_parser.add_argument("name", help="Name of the experiment to draw")
     network_parser.add_argument(
         "--sample", type=int,
         help="Color nodes by this training sample's activations (default: mean over the training set)",
     )
-    network_parser.add_argument("--output", help="PNG path (default: .orbits/experiments/<name>/results/)")
+    network_parser.add_argument("--output", help="PNG path (default: <workspace>/experiments/<name>/results/)")
     network_parser.add_argument("--show", action="store_true", help=_SHOW_HELP)
 
     # Animate command (training animation from recorded weight snapshots)
     animate_parser = subparsers.add_parser(
-        "animate", help="Animate an experiment's training: the network and loss, epoch by epoch"
+        "animate", help="Animate an experiment's training: the network and loss, epoch by epoch", parents=[theme_parent]
     )
     animate_parser.add_argument("name", help="Name of the experiment to animate")
     animate_parser.add_argument(
         "--sample", type=int,
         help="Color nodes by this training sample's activations (default: mean over the training set)",
     )
-    animate_parser.add_argument(
-        "--mp4", action="store_true", help="Save an MP4 instead of a GIF (needs ffmpeg)"
-    )
-    animate_parser.add_argument("--fps", type=int, default=10, help="Frames per second (default: 10)")
-    animate_parser.add_argument("--output", help="Output path (default: .orbits/experiments/<name>/results/)")
+    _add_video_arguments(animate_parser)
+    animate_parser.add_argument("--output", help="Output path (default: <workspace>/experiments/<name>/results/)")
     animate_parser.add_argument("--logscale", action="store_true", help="Use a log-scale y-axis for the loss")
     animate_parser.add_argument("--show", action="store_true", help=_SHOW_HELP)
 
     # Boundary command (decision boundary of a 2-input model)
     boundary_parser = subparsers.add_parser(
-        "boundary", help="Plot a 2-input model's decision boundary over its data"
+        "boundary", help="Plot a 2-input model's decision boundary over its data", parents=[theme_parent]
     )
     boundary_parser.add_argument("name", help="Name of the experiment to plot")
     boundary_parser.add_argument(
         "--animate", action="store_true", help="Animate the boundary forming over training (GIF by default)"
     )
-    boundary_parser.add_argument("--mp4", action="store_true", help="With --animate: save an MP4 (needs ffmpeg)")
-    boundary_parser.add_argument("--fps", type=int, default=10, help="With --animate: frames per second (default: 10)")
-    boundary_parser.add_argument("--output", help="Output path (default: .orbits/experiments/<name>/results/)")
+    _add_video_arguments(boundary_parser, prefix="With --animate: ")
+    boundary_parser.add_argument("--output", help="Output path (default: <workspace>/experiments/<name>/results/)")
     boundary_parser.add_argument("--show", action="store_true", help=_SHOW_HELP)
 
     # Health command (dead/saturated units per hidden layer)
     health_parser = subparsers.add_parser(
-        "health", help="Check every hidden layer for dead or saturated units"
+        "health", help="Check every hidden layer for dead or saturated units", parents=[theme_parent]
     )
     health_parser.add_argument("name", help="Name of the experiment to check")
-    health_parser.add_argument("--output", help="PNG path (default: .orbits/experiments/<name>/results/health.png)")
+    health_parser.add_argument("--output", help="PNG path (default: <workspace>/experiments/<name>/results/health.png)")
 
     # Sweep command (nested subcommands)
     sweep_parser = subparsers.add_parser("sweep", help="Hyperparameter sweeps over a base experiment")
@@ -296,9 +300,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sweep_export_parser = sweep_subparsers.add_parser("export", help="Export every run's params and metrics to CSV")
     sweep_export_parser.add_argument("name", help="Name of the sweep")
-    sweep_export_parser.add_argument("--output", help="CSV path (default: .orbits/sweeps/<name>/results.csv)")
+    sweep_export_parser.add_argument("--output", help="CSV path (default: <workspace>/sweeps/<name>/results.csv)")
 
-    sweep_plot_parser = sweep_subparsers.add_parser("plot", help="Plot the sweep's finished runs")
+    sweep_plot_parser = sweep_subparsers.add_parser(
+        "plot", help="Plot the sweep's finished runs", parents=[theme_parent]
+    )
     sweep_plot_parser.add_argument("name", help="Name of the sweep")
     sweep_plot_parser.add_argument(
         "--logscale", action="store_true",
@@ -327,6 +333,28 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _add_video_arguments(parser: argparse.ArgumentParser, prefix: str = "") -> None:
+    """--gif/--mp4 and --fps, which default to display.animation_format/fps in the settings."""
+    video_format = parser.add_mutually_exclusive_group()
+    video_format.add_argument("--gif", action="store_true", help=prefix + "save a GIF")
+    video_format.add_argument("--mp4", action="store_true", help=prefix + "save an MP4 (needs ffmpeg)")
+    parser.add_argument(
+        "--fps", type=int, help=prefix + "frames per second (default: display.fps in the settings)"
+    )
+
+
+def _video_options(args: argparse.Namespace) -> tuple:
+    """(video_format, fps): the flags when given, else the settings' display defaults."""
+    display = load_settings()["display"]
+    if args.mp4:
+        video_format = "mp4"
+    elif args.gif:
+        video_format = "gif"
+    else:
+        video_format = display["animation_format"]
+    return video_format, args.fps if args.fps is not None else display["fps"]
+
+
 def _resolve_show(args: argparse.Namespace, in_repl: bool) -> bool:
     """
     --show opens a matplotlib window, which needs an interactive backend.
@@ -342,6 +370,16 @@ def _resolve_show(args: argparse.Namespace, in_repl: bool) -> bool:
 
 
 def _dispatch(args: argparse.Namespace, in_repl: bool = False) -> None:
+    # --theme applies to this one command only; reset afterwards so it can't
+    # carry over to the next command in the REPL's long-lived process.
+    set_theme_override(getattr(args, "theme", None))
+    try:
+        _dispatch_command(args, in_repl)
+    finally:
+        set_theme_override(None)
+
+
+def _dispatch_command(args: argparse.Namespace, in_repl: bool) -> None:
     if args.command == "init":
         init_project(args.path, assume_yes=args.yes)
     elif args.command == "config":
@@ -397,13 +435,15 @@ def _dispatch(args: argparse.Namespace, in_repl: bool = False) -> None:
             args.name, sample=args.sample, output=args.output, show=_resolve_show(args, in_repl)
         )
     elif args.command == "animate":
+        video_format, fps = _video_options(args)
         animate_experiment(
-            args.name, sample=args.sample, video_format="mp4" if args.mp4 else "gif", fps=args.fps,
+            args.name, sample=args.sample, video_format=video_format, fps=fps,
             output=args.output, log_scale=args.logscale, show=_resolve_show(args, in_repl),
         )
     elif args.command == "boundary":
+        video_format, fps = _video_options(args)
         boundary_experiment(
-            args.name, animate=args.animate, video_format="mp4" if args.mp4 else "gif", fps=args.fps,
+            args.name, animate=args.animate, video_format=video_format, fps=fps,
             output=args.output, show=_resolve_show(args, in_repl),
         )
     elif args.command == "health":

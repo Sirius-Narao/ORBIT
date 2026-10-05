@@ -631,3 +631,43 @@ def test_watch_flag_reaches_run_and_train(monkeypatch, capsys, command, fn_name)
     parser_module.main()
 
     assert calls == [{"watch": True}]
+
+
+def test_animate_uses_the_settings_video_defaults(monkeypatch):
+    from orbit.settings import load_settings, save_settings, set_value
+
+    settings = set_value(load_settings(), "display.animation_format", "mp4")
+    save_settings(set_value(settings, "display.fps", "24"))
+    calls = []
+    monkeypatch.setattr(parser_module, "animate_experiment", lambda name, **kwargs: calls.append(kwargs))
+    monkeypatch.setattr("sys.argv", ["orbit", "animate", "xor"])
+
+    parser_module.main()
+
+    assert (calls[0]["video_format"], calls[0]["fps"]) == ("mp4", 24)
+
+
+def test_gif_flag_overrides_an_mp4_setting(monkeypatch):
+    from orbit.settings import load_settings, save_settings, set_value
+
+    save_settings(set_value(load_settings(), "display.animation_format", "mp4"))
+    calls = []
+    monkeypatch.setattr(parser_module, "boundary_experiment", lambda name, **kwargs: calls.append(kwargs))
+    monkeypatch.setattr("sys.argv", ["orbit", "boundary", "xor", "--animate", "--gif"])
+
+    parser_module.main()
+
+    assert calls[0]["video_format"] == "gif"
+
+
+def test_theme_flag_applies_during_the_command_only(monkeypatch):
+    from orbit.visualization.theme import resolve_theme
+
+    seen = []
+    monkeypatch.setattr(parser_module, "plot_experiment", lambda name, **kwargs: seen.append(resolve_theme()))
+    monkeypatch.setattr("sys.argv", ["orbit", "plotloss", "xor", "--theme", "dark"])
+
+    parser_module.main()
+
+    assert seen == ["dark"]
+    assert resolve_theme() == "light"

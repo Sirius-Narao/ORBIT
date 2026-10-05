@@ -15,6 +15,7 @@ import numpy as np
 from orbit.nn.introspection import LayerInfo
 from orbit.visualization.backend import can_show, pyplot
 from orbit.visualization.network import add_network_colorbars, draw_network, network_figure_size
+from orbit.visualization.theme import theme_color, themed
 
 VIDEO_FORMATS = ("gif", "mp4")
 DEFAULT_FPS = 10
@@ -96,6 +97,7 @@ def save_animation(fig, update, frame_count: int, output_path: pathlib.Path, vid
     return output_path
 
 
+@themed
 def animate_training(
     structure: List[LayerInfo],
     frames: List[Frame],
@@ -133,14 +135,14 @@ def animate_training(
                                              fig.add_axes([0.34, 0.06, 0.22, 0.02])))
 
     epochs = np.arange(1, len(loss_history) + 1)
-    loss_ax.plot(epochs, loss_history, color="#b0ffb3", linewidth=1.5)
+    loss_ax.plot(epochs, loss_history, color=theme_color("accent"), linewidth=1.5)
     if log_scale:
         loss_ax.set_yscale("log")
     loss_ax.set_xlabel("Epoch")
     loss_ax.set_ylabel("Loss" + (" (log scale)" if log_scale else ""))
     loss_ax.set_title("Training loss", fontsize=10)
-    epoch_line = loss_ax.axvline(0, color="#888888", linewidth=1, linestyle="--")
-    (epoch_marker,) = loss_ax.plot([], [], "o", color="#d6b0ff", markersize=7)
+    epoch_line = loss_ax.axvline(0, color=theme_color("muted"), linewidth=1, linestyle="--")
+    (epoch_marker,) = loss_ax.plot([], [], "o", color=theme_color("highlight"), markersize=7)
     fig.suptitle(title, fontsize=12)
 
     def update(index):

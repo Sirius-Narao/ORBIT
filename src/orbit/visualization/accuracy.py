@@ -4,6 +4,7 @@ from typing import List
 from orbit.core import Results
 from orbit.visualization.comparison_style import add_legend, line_colors
 from orbit.core.metrics import metric_label
+from orbit.visualization.theme import theme_color, themed
 
 
 def accuracy_axis_label(results_list: List[Results]) -> str:
@@ -16,6 +17,7 @@ def accuracy_axis_label(results_list: List[Results]) -> str:
     return labels.pop() if len(labels) == 1 else "Accuracy / R²"
 
 
+@themed
 def plot_accuracy(results: Results, output_path: pathlib.Path, log_scale: bool = False) -> pathlib.Path:
     """
     Render results.accuracy_history as a line plot and save it to output_path.
@@ -36,7 +38,7 @@ def plot_accuracy(results: Results, output_path: pathlib.Path, log_scale: bool =
     label = accuracy_axis_label([results])
     fig, ax = plt.subplots()
     epochs = range(1, len(results.accuracy_history) + 1)
-    ax.plot(epochs, results.accuracy_history, color="#b0ffb3")
+    ax.plot(epochs, results.accuracy_history, color=theme_color("accent"))
     ax.set_xlabel("Epoch")
     ax.set_ylabel(label)
     title = f"{results.name} — {label}"
@@ -51,6 +53,7 @@ def plot_accuracy(results: Results, output_path: pathlib.Path, log_scale: bool =
     return output_path
 
 
+@themed
 def plot_accuracy_comparison(
     results_list: List[Results], output_path: pathlib.Path, log_scale: bool = False
 ) -> pathlib.Path:
